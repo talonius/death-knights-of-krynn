@@ -8,15 +8,15 @@ REM FIXMAIN.OVR, then renamed). FIXMAIN.EXE and FIXMAIN.MAP stay beside them.
 REM Compiler and assembler outputs go to E:\OBJ. TPC reads the compiler
 REM settings in E:\SRC\TPC.CFG from its working directory.
 REM
-REM gametools/build.sh mounts the drives, clears E:\OBJ and reads the logs:
-REM     C:  drive_c                        E:  the version dir
+REM build.sh mounts the drives, clears E:\OBJ and reads the logs:
+REM     C:  drive_c                        E:  this repository
 REM     D:  TPC.EXE and TURBO.TPL          F:  TASM      G:  EXEPACK
 E:
 CD \SRC
 PATH D:\
 
 REM Assemble the source leaves linked by Pascal units through {$L}.
-REM gametools/build.sh refuses when this list and src/*.asm disagree.
+REM Keep this list in step with src/*.asm.
 F:\TASM BLIT,..\OBJ\BLIT          > E:\BUILD\LOGS\TASM.OUT
 F:\TASM JOYSTICK,..\OBJ\JOYSTICK >> E:\BUILD\LOGS\TASM.OUT
 F:\TASM SOUNDDRV,..\OBJ\SOUNDDRV       >> E:\BUILD\LOGS\TASM.OUT
