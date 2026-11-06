@@ -4,8 +4,6 @@
 {$F+,O+,S-,R-,V-,B-,I-}
 unit Camp;
 interface
-uses C_Class, C_Effect, C_Ifc, C_Race, C_Stat, C_Status, Crt, C_Keys, GDConsts, GDVars, Types, CharHlp,
-  GameIo, MenuCore, FxEngine, ViewChar, TextRend, Border, Magic, GameTime, SaveLoad, CharGen, Portrait;
 
 { The camp menu, for EclVm: the camping interface state while it is up, the party's scribing reset on the way in and
   out. Save counts the zone's quitCounter and every tenth save asks the copy question first, aborting on a wrong answer;
@@ -18,6 +16,8 @@ procedure CampMainMenu(var interrupted: Boolean);
   spell was cast or the spell list was not empty. }
 procedure NoncombatCastMenu;
 implementation
+uses C_Class, C_Effect, C_Ifc, C_Race, C_Stat, C_Status, Crt, C_Keys, GDConsts, GDVars, CharHlp, GameIo,
+  MenuCore, FxEngine, ViewChar, TextRend, Border, Magic, GameTime, CharGen, SaveLoad, Portrait, Types;
 type
   TEncodedWord = record
     count: Byte;
@@ -32,7 +32,8 @@ type
             words: array[0..4] of TEncodedWord);
       True: (metaWords: array[0..4] of TEncodedWord)
   end;
-var copyProtectionTable: array[1..5] of TEncodedRow absolute GDConsts.copyProtectionData;
+var
+    copyProtectionTable: array[1..5] of TEncodedRow absolute GDConsts.copyProtectionData;
 
 { Returns the smaller of two counts.
   @param(a First count.)
@@ -156,7 +157,7 @@ begin
       TextRend.DisplayString(3, 8, LightGreen, Black,
                              GDConsts.promptRuleBookPage + CharHlp.ByteToString(pageNumber) + ')?' + '     ')
     end;
-    reply := TextRend.ReadString('Enter ', Yellow, Black, 20)
+    reply := TextRend.ReadString(GDConsts.enterAnswerPrompt, Yellow, Black, 20)
   until (attempts = 3) or (reply = correctAnswer);
   if reply = correctAnswer then RuleBookCheck := 1
   else RuleBookCheck := 0
@@ -250,14 +251,14 @@ var message: String[40];
 begin
   message := '';
   if (activity = 1) and (GDVars.zone0^.antiMagic > 0) then
-    message := 'cannot cast spells in this area'
+    message := GDConsts.antiMagicMessage
   else if (GDVars.currentCharacter^.status = C_Status.ANIMATED) or
     (GDVars.currentCharacter^.enabled = 0) then begin
-    message := 'is in no condition to ';
+    message := GDConsts.incapacitatedPrefix;
     case activity of
-      1: message := message + 'cast any spells';
-      2: message := message + 'memorize spells';
-      3: message := message + 'scribe any scrolls'
+      1: message := message + GDConsts.castingSuffix;
+      2: message := message + GDConsts.memorizingSuffix;
+      3: message := message + GDConsts.scribingSuffix
     end
   end;
   if message = '' then CanDoSpellActivity := True
@@ -287,7 +288,7 @@ begin
         Border.ClearBox(1, 17, 38, 22);
         Magic.CastSpell(spellId, 0, 1, castSelectedByte)
       end else if notEmpty then needsRedraw := True
-      else CharHlp.PrintCreatureMessage(GDVars.currentCharacter, 'has no spells memorized', 10, True)
+      else CharHlp.PrintCreatureMessage(GDVars.currentCharacter, GDConsts.noSpellsMessage, 10, True)
     until spellId = 0
   end;
   if needsRedraw then CharHlp.DisplayNoncombatInterface
@@ -339,7 +340,7 @@ begin
     end;
     if (GDVars.currentCharacter^.classLevels[C_Class.MAGE] > 0) and
         (GDVars.currentCharacter^.robeOrder > 0) then begin
-      case GDVars.zone0^.moonPhase[GDVars.currentCharacter^.robeOrder + $4CF8] of
+      case GDVars.zone0^.ecl[GDVars.currentCharacter^.robeOrder + $4CF8] of
         1: GDVars.bonusSpellSlots := 1;
         2: GDVars.bonusSpellSlots := 2
       else
@@ -362,10 +363,10 @@ begin
       for spellType := 0 to 3 do
         if available[spellType] <> 0 then begin
           case spellType of
-            0: labelText := '    Cleric :';
-            1: labelText := '     Druid :';
-            2: labelText := '   Special :';
-            3: labelText := 'Magic-User :'
+            0: labelText := GDConsts.clericSpellsLabel;
+            1: labelText := GDConsts.druidSpellsLabel;
+            2: labelText := GDConsts.specialSpellsLabel;
+            3: labelText := GDConsts.magicUserSpellsLabel
           end;
           TextRend.DisplayString(1, row + 17, LightGreen, Black, labelText);
           column := 13;
@@ -376,7 +377,7 @@ begin
           Inc(row)
         end;
       if GDVars.bonusSpellSlots > 0 then begin
-        TextRend.DisplayString(1, row + 17, LightGreen, Black, 'Bonus      :');
+        TextRend.DisplayString(1, row + 17, LightGreen, Black, GDConsts.bonusSpellsLabel);
         TextRend.DisplayString(14, row + 17, LightGreen, Black, CharHlp.ByteToString(GDVars.bonusSpellSlots))
       end
     end;
@@ -418,10 +419,11 @@ begin
   if GDVars.currentCharacter^.spells <> nil then
     for i := 0 to 72 do
       for j := i to 73 do
-        if (GDVars.currentCharacter^.spells^.memorized[i] and $7F) >
-            (GDVars.currentCharacter^.spells^.memorized[j] and $7F) then begin
+        if (GDVars.currentCharacter^.spells^.memorized[i] and
+            $7F) > (GDVars.currentCharacter^.spells^.memorized[j] and $7F) then begin
           temp := GDVars.currentCharacter^.spells^.memorized[i];
-          GDVars.currentCharacter^.spells^.memorized[i] := GDVars.currentCharacter^.spells^.memorized[j];
+          GDVars.currentCharacter^.spells^.memorized[i] :=
+            GDVars.currentCharacter^.spells^.memorized[j];
           GDVars.currentCharacter^.spells^.memorized[j] := temp
         end
 end;
@@ -452,13 +454,13 @@ begin
     while done = False do begin
       done := Camp.DisplaySpellSlots = False;
       if done then
-        CharHlp.PrintCreatureMessage(GDVars.currentCharacter, 'cannot memorize any spells', 10, True)
+        CharHlp.PrintCreatureMessage(GDVars.currentCharacter, GDConsts.cannotMemorizeMessage, 10, True)
       else begin
         spellId := ViewChar.SpellMenu(1, 2, index, notEmpty);
         redraw := True;
         if spellId = 0 then done := True
-        else if (Camp.SpellSlotsRemaining(GDConsts.spellTable[spellId].level,
-                                          GDConsts.spellTable[spellId].castClass, used) > 0) or
+        else if (Camp.SpellSlotsRemaining(GDConsts.spellTable[spellId].level, GDConsts.spellTable[spellId].castClass,
+                                          used) > 0) or
           ((GDConsts.spellTable[spellId].castClass = 3) and (GDVars.bonusSpellSlots > 0)) then begin
           if GDConsts.spellTable[spellId].castClass = 2 then GDVars.specialSpellSelection := 1
           else GDVars.specialSpellSelection := 0;
@@ -476,7 +478,7 @@ begin
     end;
     if redraw then CharHlp.DisplayNoncombatInterface
   end else if GDVars.currentCharacter^.spells = nil then
-    CharHlp.PrintCreatureMessage(GDVars.currentCharacter, 'cannot memorize any spells', 10, True)
+    CharHlp.PrintCreatureMessage(GDVars.currentCharacter, GDConsts.cannotMemorizeMessage, 10, True)
 end;
 
 { Runs the Scribe menu. The spells already pending are shown first: Yes keeps them and skips the choosing, No clears
@@ -503,8 +505,8 @@ begin
     spellId := ViewChar.SpellMenu(6, 0, index, notEmpty);
     redraw := True;
     if notEmpty then begin
-      if Char(MenuCore.YesNoMenu(GDConsts.scribeConfirmPrompt, GDConsts.yesKey)) =
-          Chr(GDConsts.noKey) then Camp.ResetScribe(GDVars.currentCharacter)
+      if Char(MenuCore.YesNoMenu(GDConsts.scribeConfirmPrompt, GDConsts.yesKey)) = Chr(GDConsts.noKey) then
+          Camp.ResetScribe(GDVars.currentCharacter)
       else done := True
     end else redraw := False;
     index := -1;
@@ -513,12 +515,12 @@ begin
       if spellId = 0 then begin
         done := True;
         if notEmpty = False then
-          CharHlp.PrintCreatureMessage(GDVars.currentCharacter, 'has no copyable scrolls', 10, True)
+          CharHlp.PrintCreatureMessage(GDVars.currentCharacter, GDConsts.noCopyableMessage, 10, True)
         else redraw := True
       end else begin
         redraw := True;
         if GDVars.currentCharacter^.spells^.known[spellId] <> 0 then
-          CharHlp.PrintBottomLine('You already know that spell')
+          CharHlp.PrintBottomLine(GDConsts.alreadyKnowsMessage)
         else begin
           item := GDVars.currentCharacter^.items;
           found := False;
@@ -526,7 +528,7 @@ begin
             if Magic.ItemReadable(item) then
               for i := 1 to 3 do
                 if (item^.scrollSpells[i] > $7F) and ((item^.scrollSpells[i] and $7F) = spellId) then begin
-                  CharHlp.PrintBottomLine('You are already scribing that spell');
+                  CharHlp.PrintBottomLine(GDConsts.alreadyScribingMessage);
                   found := True
                 end;
             item := item^.next
@@ -546,7 +548,7 @@ begin
                 until (i > 3) or found;
                 item := item^.next
               end
-            end else CharHlp.PrintBottomLine('You can not scribe that spell.')
+            end else CharHlp.PrintBottomLine(GDConsts.cannotScribeMessage)
           end
         end
       end
@@ -563,7 +565,7 @@ begin
 end;
 
 { Lists the spell effects on each party member under the member's name. Spell effects show the name of the first spell
-  (1..56) producing them, or 'Funky--<id>' when none does; other visible effects have fixed labels, and the rest are
+  (1..63) producing them, or 'Funky--<id>' when none does; other visible effects have fixed labels, and the rest are
   hidden. A member with none shows '<No Spell Effects>'. Note: the labels for effects 61, 68, 69, 71 and 72 describe
   other effects than those ids carry, which are feeblemindedness, a two-level drain, a paralyzing touch, spell
   reflection and frightening adjacent foes. }
@@ -592,7 +594,7 @@ var effect: Types.PEffect;
     listTail := listTail^.next;
     listTail^.next := nil;
     listTail^.name := displayText;
-    listTail^.heading := Ord(isTitle)
+    listTail^.heading := Byte(isTitle)
   end;
 begin
   GetMem(listHead, SizeOf(Types.TMenuRow));
@@ -610,11 +612,11 @@ begin
       effectId := effect^.effectId;
       case effectId of
         1, 5, 8, 10..12, 14, 16, 17, 19..25, 28, 29, 32..34, 36..39,
-        41, 42, 45, 46, 49, 51..53:
+        41, 42, 45, 46, 49, 51..53, 59, 63:
           begin
             spellIndex := 1;
             effectNameFound := False;
-            while (spellIndex <= 56) and (effectNameFound = False) do
+            while (spellIndex <= 63) and (effectNameFound = False) do
               if GDConsts.spellTable[spellIndex].effectId = effectId then begin
                 effectName := GDConsts.spellNames[spellIndex];
                 effectNameFound := True
@@ -631,10 +633,8 @@ begin
         50: effectName := 'Hot Fire Shield';
         54: effectName := 'Cold Fire Shield';
         55: effectName := 'Poisoned';
-        59: effectName := 'Globe Of Invulnerability';
         60: effectName := 'iron skin';
         61: effectName := 'Fire Resistance';
-        63: effectName := 'Minor Globe of Invulnerability';
         68: effectName := 'enfeebled';
         69: effectName := 'invisible to animals';
         71: effectName := 'Invisible';
@@ -661,8 +661,7 @@ begin
   Border.DrawWindowFrame(0);
   MenuCore.EnableChoices(0);
   choice := Char(MenuCore.MenuVertical(GDConsts.emptyQuery, GDConsts.emptyMenu, 1, 4, 38, 22, listHead, 1, -1,
-                                       viewNeedsRedraw, menuIndex,
-                                       Pointer(listTail)));
+                                       viewNeedsRedraw, menuIndex, Pointer(listTail)));
   MenuCore.FreeMenuRows(listHead);
   CharHlp.DisplayNoncombatInterface
 end;
@@ -671,18 +670,18 @@ end;
   @param(interrupted Set when a rest is interrupted, which also ends the menu.) }
 procedure CampMagicMenu(var interrupted: Boolean);
 var selected: Char;
-    savedChoice: Byte;
+    savedChoice: Boolean;
 begin
   selected := Chr(255);
-  savedChoice := 1;
+  savedChoice := True;
   while (interrupted = False) and (Ord(selected) <> 5) and
       ((GDVars.menuExtendedKey = 0) or (selected <> C_Keys.ESCAPE)) do begin
     FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF);
     MenuCore.EnableChoices(5);
-    GDVars.selectedChoice := savedChoice;
+    GDVars.selectedChoice := Ord(savedChoice);
     selected := Char(MenuCore.MenuHorizontal('', GDConsts.magicMenu, 1, 1));
-    savedChoice := GDVars.selectedChoice;
-    if (GDVars.menuExtendedKey <> 0) then begin
+    savedChoice := Boolean(GDVars.selectedChoice);
+    if GDVars.menuExtendedKey <> 0 then begin
       CharHlp.DisplayRoster(GDVars.currentCharacter, False);
       ViewChar.SelectAdjacentCharacter(selected);
       CharHlp.DisplayRoster(GDVars.currentCharacter, True)
@@ -759,20 +758,20 @@ procedure PartyOrderMenu;
 var selected: Byte;
     key: Char;
     choice: Char;
-    savedChoice: Byte;
+    savedChoice: Boolean;
 begin
   selected := 0;
   choice := Chr(255);
-  savedChoice := 1;
+  savedChoice := True;
   while (Ord(choice) <> 2) and ((GDVars.menuExtendedKey = 0) or (choice <> C_Keys.ESCAPE)) do begin
     FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF);
     if selected <> 0 then GDVars.enabledChoices[0].ordinal := 1
     else GDVars.enabledChoices[0].ordinal := 0;
     GDVars.enabledChoices[1].ordinal := 2;
-    GDVars.selectedChoice := savedChoice;
+    GDVars.selectedChoice := Ord(savedChoice);
     choice := Char(MenuCore.MenuHorizontal(GDConsts.orderQuery, GDConsts.orderMenu, 1, 1));
-    savedChoice := GDVars.selectedChoice;
-    if (GDVars.menuExtendedKey <> 0) then begin
+    savedChoice := Boolean(GDVars.selectedChoice);
+    if GDVars.menuExtendedKey <> 0 then begin
       if selected = 0 then begin
         CharHlp.DisplayRoster(GDVars.currentCharacter, False);
         ViewChar.SelectAdjacentCharacter(choice);
@@ -831,7 +830,7 @@ begin
   GDVars.selectedChoice := difficulty;
   MenuCore.EnableChoices(4);
   choice := MenuCore.MenuHorizontal(GDConsts.emptyQuery, GDConsts.levelMenu, 0, 1);
-  if (GDVars.menuExtendedKey <> 0) then begin
+  if GDVars.menuExtendedKey <> 0 then begin
     CharHlp.DisplayRoster(GDVars.currentCharacter, False);
     ViewChar.SelectAdjacentCharacter(Chr(choice));
     CharHlp.DisplayRoster(GDVars.currentCharacter, True)
@@ -845,9 +844,9 @@ procedure CampSpeedMenu;
 var
   slotCount: Byte;
   choice: Byte;
-  savedChoice: Byte;
+  savedChoice: Boolean;
 begin
-  savedChoice := 1;
+  savedChoice := True;
   repeat
     TextRend.DisplayString(1, 18, LightGreen, Black,
                            GDConsts.gameSpeedPrompt + CharHlp.ByteToString(GDVars.textDelay));
@@ -856,10 +855,10 @@ begin
     if GDVars.textDelay > 0 then MenuCore.AppendChoice(0, slotCount);
     if GDVars.textDelay < 9 then MenuCore.AppendChoice(1, slotCount);
     MenuCore.AppendChoice(2, slotCount);
-    GDVars.selectedChoice := savedChoice;
+    GDVars.selectedChoice := Ord(savedChoice);
     choice := MenuCore.MenuHorizontal(GDConsts.gameSpeedLabel, GDConsts.speedChoices, 1, 1);
-    savedChoice := GDVars.selectedChoice;
-    if (GDVars.menuExtendedKey <> 0) then begin
+    savedChoice := Boolean(GDVars.selectedChoice);
+    if GDVars.menuExtendedKey <> 0 then begin
       case choice of
         Ord(C_Keys.DOWN): if GDVars.textDelay > 0 then Dec(GDVars.textDelay);
         Ord(C_Keys.UP): if GDVars.textDelay < 9 then Inc(GDVars.textDelay);
@@ -881,16 +880,16 @@ var
   { Unused in this version; see the other implementations of this routine. }
   toggleChoice: Byte;
   { Unused in this version; see the other implementations of this routine. }
-  savedChoice: Byte;
+  savedChoice: Boolean;
 begin
   choice := 255;
-  savedChoice := 1;
+  savedChoice := True;
   while choice <> 5 do begin
     MenuCore.EnableChoices(5);
     GDVars.selectedChoice := 1;
     choice := MenuCore.MenuHorizontal('', GDConsts.alterMenu, 0, 1);
-    savedChoice := GDVars.selectedChoice;
-    if (GDVars.menuExtendedKey <> 0) then begin
+    savedChoice := Boolean(GDVars.selectedChoice);
+    if GDVars.menuExtendedKey <> 0 then begin
       if choice = Ord(C_Keys.ESCAPE) then choice := 5
       else begin
         CharHlp.DisplayRoster(GDVars.currentCharacter, False);
@@ -925,26 +924,25 @@ const
   character's blindness rather than the blind member's, and never uses up a cure.
   @param(interrupted Set when either rest is interrupted.) }
 procedure CampFixMenu(var interrupted: Boolean);
-var healPool: Word;
-    { the cure slots, by cleric spell level 1, 4, 5 and 6 }
-    cureLightSlots: Word;
-    cureSeriousSlots: Word;
-    cureCriticalSlots: Word;
-    healSlots: Word;
-    raiseDeadCount: Word;
-    resurrectionCount: Word;
-    removeCurseCount: Word;
-    cursedCount: Word;
-    cureBlindnessCount: Word;
-    blindCount: Word;
-    { Heal lifts feeblemindedness, which Magic.SpellHeal reports as regaining intellect }
-    healCount: Word;
-    feeblemindedCount: Word;
-    neutralizePoisonCount: Word;
-    poisonedCount: Word;
-    stoneToFleshCount: Word;
-    petrifiedCount: Word;
-    savedRestTime: Types.TClock;
+var
+  healPool: Word;
+  cureLightSlots: Word;
+  cureSeriousSlots: Word;
+  cureCriticalSlots: Word;
+  healSlots: Word;
+  raiseDeadCount: Word;
+  resurrectionCount: Word;
+  removeCurseCount: Word;
+  cursedCount: Word;
+  cureBlindnessCount: Word;
+  blindCount: Word;
+  healCount: Word;
+  feeblemindedCount: Word;
+  neutralizePoisonCount: Word;
+  poisonedCount: Word;
+  stoneToFleshCount: Word;
+  petrifiedCount: Word;
+  savedRestTime: Types.TClock;
 
   { Whether a character can cast: okay and with spells. }
   function CanCast(character: Types.PCharacter): Boolean;
@@ -1138,7 +1136,7 @@ var healPool: Word;
   { Applies the counted cures to each member: heal, flesh, poison, raise dead, curse and sight. }
   procedure CureStatusEffects;
   var character: Types.PCharacter;
-      effect: Types.PEffect;
+      effect: Pointer;
       { Unused in this version; see the other implementations of this routine. }
       diseaseIndex: Byte;
       wasHealed: Boolean;
@@ -1230,7 +1228,7 @@ var healPool: Word;
   { Counts the members needing each cure: dead, stoned, cursed, poisoned, feebleminded and otherwise blind. }
   procedure CountCureNeeds;
   var character: Types.PCharacter;
-      effect: Types.PEffect;
+      effect: Pointer;
   begin
     resurrectionCount := 0;
     cursedCount := 0;
@@ -1300,7 +1298,7 @@ var
   choice: Byte;
   key: Char;
   menuDone: Boolean absolute key;
-  savedChoice: Byte;
+  savedChoice: Boolean;
 begin
   savedMode := GDVars.interfaceState;
   GDVars.interfaceState := C_Ifc.CAMPING;
@@ -1314,13 +1312,13 @@ begin
   Camp.ResetPartySpellActivities;
   interrupted := False;
   choice := 255;
-  savedChoice := 1;
+  savedChoice := True;
   while (not interrupted) and (choice <> 6) do begin
     MenuCore.EnableChoices(6);
-    GDVars.selectedChoice := savedChoice;
+    GDVars.selectedChoice := Ord(savedChoice);
     choice := MenuCore.MenuHorizontal(GDConsts.emptyQuery, GDConsts.campMenu, 1, 1);
-    savedChoice := GDVars.selectedChoice;
-    if (GDVars.menuExtendedKey <> 0) then begin
+    savedChoice := Boolean(GDVars.selectedChoice);
+    if GDVars.menuExtendedKey <> 0 then begin
       if choice = Ord(C_Keys.ESCAPE) then choice := 6
       else begin
         CharHlp.DisplayRoster(Pointer(GDVars.currentCharacter), False);
@@ -1337,8 +1335,8 @@ begin
               GDVars.zone0^.quitCounter := 0
             end;
             SaveLoad.SaveGame;
-            if Char(MenuCore.YesNoMenu(GDConsts.quitToDosPrompt,
-                                       GDConsts.noKey)) = Chr(GDConsts.yesKey) then GameIo.ExitGame
+            if Char(MenuCore.YesNoMenu(GDConsts.quitToDosPrompt, GDConsts.noKey)) =
+                Chr(GDConsts.yesKey) then GameIo.ExitGame
           end;
         1: ViewChar.ViewCharMenu(menuDone);
         2: Camp.CampMagicMenu(interrupted);

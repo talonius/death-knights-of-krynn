@@ -3,8 +3,8 @@
 {$O+,F+}
 unit Shop;
 interface
-uses C_Ifc, Crt, C_Keys, GDConsts, GDVars, Types, TextRend, MenuCore, CharHlp, ViewChar, GameIo, Border,
-  Money;
+uses C_Ifc, Crt, C_Keys, GDConsts, GDVars, CharHlp, TextRend, MenuCore, ViewChar, GameIo, Border, Money,
+  Types;
 
 { Runs a store: the money pool starts empty and the store's goods are the treasure item list. The menu offers Buy, View,
   Pool, Appraise and Exit, plus Take and Share while the pool holds money; the up and down arrow keys change the current
@@ -19,19 +19,17 @@ procedure ShopMainMenu;
   @param(failed Set when the character cannot carry the item, cleared otherwise.) }
 procedure GiveItemCopyToCreature(it: Types.PItem; var failed: Boolean);
 implementation
-type
-  TStr10 = String[10];
 
 { Shows the current character's funds and the pooled funds on rows 20 and 21. }
 procedure DisplayShopMoney;
-var s: TStr10;
+var s: Types.TString40;
 begin
   Str(LongInt(GDVars.currentCharacter^.coins[4]), s);
   TextRend.RightAlignString(s, 10);
-  TextRend.DisplayString(1, 20, White, Black, 'Personal funds:' + s);
+  TextRend.DisplayString(1, 20, White, Black, GDConsts.goldLabel + s);
   Str(GDVars.pooledMoney[4], s);
   TextRend.RightAlignString(s, 10);
-  TextRend.DisplayString(1, 21, White, Black, 'Pooled funds:  ' + s)
+  TextRend.DisplayString(1, 21, White, Black, GDConsts.poolLabel + s)
 end;
 
 { Writes each item's price, right-aligned, into its name, runs the vertical menu over the shop's items and restores the
@@ -90,7 +88,7 @@ var
   q: Types.PItem;
 begin
   if ViewChar.CannotCarryItem(GDVars.currentCharacter, 1, it) then begin
-    CharHlp.PrintBottomLine('OverLoaded'); failed := True
+    CharHlp.PrintBottomLine(GDConsts.tradeOverloadMessage); failed := True
   end else begin
     failed := False; p := GDVars.currentCharacter^.items;
     if p = nil then begin
@@ -176,8 +174,8 @@ var
   menuState: Byte;
 begin
   GDVars.previousInterfaceState := GDVars.interfaceState; GDVars.interfaceState := C_Ifc.SHOP_TEMPLE;
-  GDVars.noncombatPrepared := 0; CharHlp.DisplayNoncombatInterface; GDVars.noncombatPrepared :=
-    1; CharHlp.DisplayParty(GDVars.currentCharacter);
+  GDVars.noncombatPrepared := 0; CharHlp.DisplayNoncombatInterface; GDVars.noncombatPrepared := 1;
+      CharHlp.DisplayParty(GDVars.currentCharacter);
   FillChar(GDVars.pooledMoney, SizeOf(GDVars.pooledMoney), 0); GDVars.treasureActive := 0; done := False;
   p := GDVars.treasureItems;
   while p <> nil do begin CharHlp.PrintItemString(nil, p, 0, 0, False, False); p := p^.next end;
@@ -193,7 +191,7 @@ begin
     GDVars.selectedChoice := menuState;
     c := MenuCore.MenuHorizontal(GDConsts.emptyQuery, GDConsts.shopMenu, 1, 0);
     menuState := GDVars.selectedChoice;
-    if (GDVars.menuExtendedKey <> 0) then begin
+    if GDVars.menuExtendedKey <> 0 then begin
       case c of
         Ord(C_Keys.UP), Ord(C_Keys.DOWN): begin ViewChar.SelectAdjacentCharacter(Char(c)); c := 255 end;
         Ord(C_Keys.ESCAPE): c := 6

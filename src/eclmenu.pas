@@ -4,8 +4,8 @@
 {$O+,F+}
 unit EclMenu;
 interface
-uses C_Class, C_Dir, C_Ifc, C_Keys, C_Side, C_Status, Crt, GDConsts, GDVars, Types, TextRend, MapView,
-  FxEngine, View3D, MenuCore, DaxIo, Portrait, CharHlp, ViewChar, SaveLoad;
+uses C_Class, C_Dir, C_Ifc, C_Keys, C_Side, C_Status, Crt, GDConsts, GDVars, CharHlp, TextRend, MapView,
+  FxEngine, View3D, MenuCore, DaxIo, SaveLoad, Portrait, ViewChar, Types;
 
 { Returns the value of an operand: a literal byte (type 0), the GBVM value at its address (1, 3, $80), or its two bytes
   as a word (2, $81).
@@ -35,8 +35,7 @@ procedure LoadEclScript(scriptId: Byte);
   @param(inventory Receives its items.)
   @param(effects Receives its effects.)
   @param(spells Receives its spell block.) }
-procedure InitCreature(id: Byte; var cr: Types.PCharacter; var inventory: Types.PItem; var effects: Types.PEffect;
-                       var spells: Types.PSpellBlock);
+procedure InitCreature(id: Byte; var cr, inventory, effects, spells: Pointer);
 
 { Works out how far ahead a monster can appear. Outside the 3D view it is 2, also stored as the zone's monster distance;
   in it, the number of open cells (at most 2) walking from the position in the facing before a wall.
@@ -60,34 +59,6 @@ procedure DisplayMonster(spriteId, pictureId, dist: Byte; var flags: Types.TMonF
   @returns(The high byte times 256 plus the low byte.) }
 function CombineBytesToWord(lower, upper: Byte): Word;
 
-{ Turns a 6-bit game character into ASCII: codes below 32 gain 64, and higher codes stay as they are.
-  @param(c The game character.)
-  @returns(The ASCII character.) }
-function DecodeGameCharacter(c: Byte): Char;
-
-{ Finds the GBVM bank holding an address.
-  @param(vmAddr The GBVM address.)
-  @returns(0 for $4B00..$4EFF, 1 for $7C00..$7FFF, 2 for $7A00..$7BFF, 3 (the script) for $8000..$9DFF, and 4 for
-    anything else.) }
-function GbvmZone(vmAddr: Word): Byte;
-
-{ Returns a creature's 0-based position in the party.
-  @param(cr The creature.)
-  @returns(Its position.) }
-function PartyIndexOf(cr: Types.PCharacter): Byte;
-
-{ Reads the current character's field behind a zone-1 address. Name bytes copy iconDimensions bytes into a Word.
-  @param(vmAddr Zone-1 GBVM address.)
-  @param(found Set False when the address is not one of them.)
-  @returns(The field's value.) }
-function SpecialReadZ1(vmAddr: Word; var found: Boolean): Word;
-
-{ Writes the current character's field behind zone-1 address vmAddr: memorized spells, npc, coins, back in play, side
-  and quick-fight, hit points, and $7F12, which swaps to that disk.
-  @param(vmAddr Zone-1 GBVM address.)
-  @param(value Value to write.) }
-procedure SpecialWriteZ1(vmAddr, value: Word);
-
 { Writes a byte (kind 0, 1) or word to GBVM address vmAddr. Zone 0 notes sky changes and switches the interface on the
   dungeon flag; zone 1 also writes the character field; zone 4 sets map x, y and facing (0..3, taken mod 4) or the wall
   and ceiling colors.
@@ -108,18 +79,6 @@ function ReadGbvm(vmAddr: Word; kind: Byte): Word;
   @param(vmAddr The GBVM address.)
   @param(s The string.) }
 procedure WriteGbvmString(vmAddr: Word; s: String);
-
-{ Decodes packed 6-bit game characters at the script's instruction pointer into a script string, four characters to
-  three bytes; zero characters are dropped. The instruction pointer ends on the last byte read.
-  @param(len The number of packed bytes.)
-  @param(strIdx The script string to fill.) }
-procedure ConvGbString(len, strIdx: Byte);
-
-{ Copies the zero-terminated string at a GBVM address into a script string. The zone-1 base address gives the current
-  character's name; addresses outside the zones give an empty string.
-  @param(strIdx The script string filled.)
-  @param(vmAddr The GBVM address.) }
-procedure DerefGbString(strIdx: Byte; vmAddr: Word);
 
 { A script's horizontal menu; an extended key outside the overland map with overland travel on selects the adjacent
   character.
@@ -150,8 +109,8 @@ function MenuHorizontalCharacterSelect(query: Types.TString40; menu: String; qCo
   @param(idx The menu's position, kept between calls.)
   @param(selected Receives the row chosen.) }
 procedure EclVerticalMenu(query: Types.TString40; menu: String; qCol, mCol, hlCol: Byte; ulCol, ulRow, lrCol,
-                          lrRow: ShortInt; list: Types.PItem; addExit: Byte; var redraw: Byte; var idx: Integer;
-                          var selected: Types.PItem);
+                          lrRow: ShortInt; list: Types.PItem; addExit: Boolean; var redraw: Boolean;
+                          var idx: Integer; var selected: Types.PItem);
 
 { Sets the six comparison flags from two strings: equal, not equal, less, greater, less or equal, greater or equal.
   @param(leftOperand The left side.)
@@ -186,9 +145,6 @@ procedure RobItems(chance: Byte; cr: Types.PCharacter);
 { Steps over the command at eclIp by fetching its operands; $2C appears in two lists and takes one. }
 procedure SkipEclCmd;
 
-{ Empty routine with no callers. }
-procedure NoopEclMenu;
-
 { Deals script damage to a creature with a message, then redraws the party panel; a dead creature is skipped. The
   creature dies when the damage is more than 10 above its hit points; otherwise the message gives the damage, at most
   three digits. When the message window is full it waits for a key first.
@@ -199,14 +155,13 @@ procedure EclInflictDamage(dmg: Word; cr: Types.PCharacter);
 { Refreshes the event byte and, when a picture, sprite, color, move or sky change is pending, redraws the view and the
   status line and refreshes the wall-ahead byte. }
 procedure UpdateEclDisplay;
-
-{ Prepares a script menu string: capitals are lower-cased, and each '~' is removed and the letter after it upper-cased
-  as that option's hotkey. Note: digits are shifted along with the capitals, which turns them into letters.
-  @param(menu The menu string, prepared in place.)
-  @param(options Receives the hotkeys in order.)
-  @param(shortcutCount Receives their count.) }
-procedure MenuToOptions(var menu: String; var options: Types.TString40; var shortcutCount: Byte);
 implementation
+
+procedure ConvGbString(len, strIdx: Byte); forward;
+
+procedure DerefGbString(strIdx: Byte; vmAddr: Word); forward;
+
+function SpecialReadZ1(vmAddr: Word; var found: Boolean): Word; forward;
 
 procedure LoadEclVars(count: Byte);
 var
@@ -277,9 +232,7 @@ begin
   GDVars.ceilingFloorColorSet := 9;
   GDVars.wallColorsChanged := 1;
   FillChar(GDVars.monsterFlags, SizeOf(GDVars.monsterFlags), 0);
-  { the party holds CPIC slots 0..7 }
   GDVars.iconAnimation := 8;
-  { the script's first byte }
   GDVars.eclIp := $8000;
   GDVars.breathAim := 0;
   GDVars.eclStack := nil;
@@ -287,7 +240,6 @@ begin
   FillChar(GDVars.cmpFlags, SizeOf(GDVars.cmpFlags), 0);
   GDVars.zone1^.restPeriod[GDConsts.restPeriodIndex + $7C00] := 0;
   GDVars.zone1^.interruptPct[GDConsts.interruptPctIndex + $7C00] := 0;
-  { the script begins with its five entry addresses }
   EclMenu.LoadEclVars(1);
   GDVars.eclEntryPoints.entries[1] := EclMenu.CombineBytesToWord(GDVars.varLo[1], GDVars.varHi[1]);
   EclMenu.LoadEclVars(1);
@@ -319,7 +271,6 @@ begin
   repeat
     MenuCore.ClearBottomLine;
     TextRend.DisplayString(GDConsts.messageColumn, GDConsts.messageRow, LightGreen, Black, GDConsts.loadingMessage);
-    { disk 5's scripts are in ECL1.DAX }
     if GDVars.diskNumber = 5 then disk := '1'
     else Str(GDVars.diskNumber, disk);
     DaxIo.LoadDax('ECL' + disk, GDConsts.daxExtension, scriptId, sizeRead, data)
@@ -329,8 +280,7 @@ begin
   MenuCore.ClearBottomLine
 end;
 
-procedure InitCreature(id: Byte; var cr: Types.PCharacter; var inventory: Types.PItem; var effects: Types.PEffect;
-                       var spells: Types.PSpellBlock);
+procedure InitCreature(id: Byte; var cr, inventory, effects, spells: Pointer);
 var
   { Unused in this version; see the other implementations of this routine. }
   item: Pointer;
@@ -338,9 +288,9 @@ begin
   cr := nil;
   GetMem(cr, SizeOf(Types.TCharacter));
   SaveLoad.LoadCreatureData(id, False, cr);
-  inventory := cr^.items;
-  effects := cr^.effects;
-  spells := cr^.spells
+  inventory := Types.PCharacter(cr)^.items;
+  effects := Types.PCharacter(cr)^.effects;
+  spells := Types.PCharacter(cr)^.spells
 end;
 
 function MaxMonsterDist(x, y, facing: Byte): Byte;
@@ -395,7 +345,8 @@ begin
         GDVars.forceMapRedraw := 1;
         MapView.DisplayMapView
       end;
-      if GDVars.interfaceState = C_Ifc.VIEW_3D then Portrait.Show3DSprite(displayDist, GDVars.portraitAnimation)
+      if GDVars.interfaceState = C_Ifc.VIEW_3D then
+        Portrait.Show3DSprite(displayDist, GDVars.portraitAnimation)
     end;
   if not flags[1] then
     if pictureId <> 255 then
@@ -414,12 +365,19 @@ begin
   CombineBytesToWord := upper * 256 + lower
 end;
 
+{ Turns a 6-bit game character into ASCII: codes below 32 gain 64, and higher codes stay as they are.
+  @param(c The game character.)
+  @returns(The ASCII character.) }
 function DecodeGameCharacter(c: Byte): Char;
 begin
   if c > 31 then DecodeGameCharacter := Chr(c)
   else DecodeGameCharacter := Chr(c + 64)
 end;
 
+{ Finds the GBVM bank holding an address.
+  @param(vmAddr The GBVM address.)
+  @returns(0 for $4B00..$4EFF, 1 for $7C00..$7FFF, 2 for $7A00..$7BFF, 3 (the script) for $8000..$9DFF, and 4 for
+    anything else.) }
 function GbvmZone(vmAddr: Word): Byte;
 begin
   GbvmZone := 4;
@@ -429,6 +387,9 @@ begin
   if (vmAddr >= $8000) and (vmAddr <= $9DFF) then GbvmZone := 3
 end;
 
+{ Returns a creature's 0-based position in the party.
+  @param(cr The creature.)
+  @returns(Its position.) }
 function PartyIndexOf(cr: Types.PCharacter): Byte;
 var
   idx: Byte;
@@ -448,6 +409,10 @@ begin
   PartyIndexOf := idx
 end;
 
+{ Reads the current character's field behind a zone-1 address. Name bytes copy iconDimensions bytes into a Word.
+  @param(vmAddr Zone-1 GBVM address.)
+  @param(found Set False when the address is not one of them.)
+  @returns(The field's value.) }
 function SpecialReadZ1(vmAddr: Word; var found: Boolean): Word;
 var
   value: Word;
@@ -460,13 +425,10 @@ begin
   value := 0;
   with GDVars.currentCharacter^ do
   case vmAddr of
-    { the count is the record's own iconDimensions byte }
     $00..$0F: Move(name[vmAddr + 1], value, iconDimensions);
-    { [6] is past stats: exceptional strength }
     $14..$1A: value := stats[ShortInt(vmAddr - $14)].current;
     $1B..$64: if spells <> nil then
-      value := spells^.memorized[vmAddr - $1B];
-    { [6] likewise }
+      value := Types.PBytes(spells)^[vmAddr - $1B];
     $65..$6B: value := stats[ShortInt(vmAddr - $65)].base;
     $71: value := thac0Base;
     $72: value := race;
@@ -481,7 +443,6 @@ begin
     $BB: value := robeOrder;
     $BC: value := deity;
     $BF: value := knightOrder;
-    { steel, gems, jewelry: a word each }
     $C3..$C8: begin
       coinIndex := (vmAddr - $C3) div 2 + 4;
       value := coins[coinIndex]
@@ -489,7 +450,6 @@ begin
     $D3: value := spellResistance;
     $D6: value := gender;
     $D8: value := alignment;
-    { the classes held, a bit each }
     $EB: begin
       if classLevels[C_Class.MAGE] > 0 then Inc(value);
       if classLevels[C_Class.CLERIC] > 0 then Inc(value, 2);
@@ -499,7 +459,6 @@ begin
       if classLevels[C_Class.PALADIN] > 0 then Inc(value, $40);
       if classLevels[C_Class.RANGER] > 0 then Inc(value, $80)
     end;
-    { in play, or $80 once status disabled it }
     $100: if enabled = 0 then value := $80 else value := 1;
     $10E: value := thac0Adjusted;
     $10F: value := armorClass;
@@ -514,6 +473,10 @@ begin
   SpecialReadZ1 := value
 end;
 
+{ Writes the current character's field behind zone-1 address vmAddr: memorized spells, npc, coins, back in play, side
+  and quick-fight, hit points, and $7F12, which swaps to that disk.
+  @param(vmAddr Zone-1 GBVM address.)
+  @param(value Value to write.) }
 procedure SpecialWriteZ1(vmAddr, value: Word);
 var
   coinIndex: ShortInt;
@@ -523,22 +486,19 @@ begin
   case vmAddr of
     0: GDVars.nameCellWritten := 1;
     $1B..$64: if spells <> nil then
-      spells^.memorized[vmAddr - $1B] := value;
+      Types.PBytes(spells)^[vmAddr - $1B] := value;
     $B8: npc := value;
     $C3..$C8: begin
       coinIndex := (vmAddr - $C3) div 2 + 4;
       coins[coinIndex] := value
     end;
-    { back in play }
     $100: if value = 1 then begin
       status := C_Status.OKAY;
       enabled := 1
     end;
-    { 0 the party, $80 the party on quick fight, $81 a monster }
     $10C: case value of
       0, $80: begin
         side := C_Side.PLAYER;
-        { stored as a Boolean into the Byte field }
         Boolean(quickFight) := value = $80
       end;
       $81: begin
@@ -547,7 +507,6 @@ begin
       end
     end;
     $119: hitPoints := value;
-    { savedDisk at $7F12: swap to that disk }
     $312: DaxIo.PushState(value)
   end
 end;
@@ -563,7 +522,6 @@ begin
   case zone of
     0: begin
       case vmAddr - $4B00 of
-        { skyA, skyB }
         $FD, $FE: GDVars.skyChanged := True;
         $E6: if GDVars.zone0^.inDungeon <> value then begin
           GDVars.previousInterfaceState := GDVars.interfaceState;
@@ -590,7 +548,6 @@ begin
           GDVars.mapState.y := value;
           GDVars.partyMoved := True
         end;
-        { 0..3 is a facing, reduced modulo 4 }
         $E5: begin
           repeat
             facingFound := True;
@@ -635,7 +592,6 @@ begin
   case zone of
     0: begin
       if vmAddr = $4BEA then value := GDVars.mapState.facing
-      { firstMonsterDown reads as 1 }
       else if vmAddr = $4CF8 then value := 1
       else Move(GDVars.zone0^.ecl[vmAddr], value, size)
     end;
@@ -652,9 +608,8 @@ begin
       case vmAddr of
         0: value := GDVars.mapState.x;
         1: value := GDVars.mapState.y;
-        { 0..3 in the 3-D view }
         2: if GDVars.zone0^.inDungeon = 0 then value := GDVars.mapState.facing
-          else value := Word(GDVars.mapState.facing) div 2;
+          else value := GDVars.mapState.facing div 2;
         3: value := GDVars.mapState.wallAhead;
         4: value := GDVars.mapState.event
       end
@@ -696,6 +651,10 @@ begin
   end
 end;
 
+{ Decodes packed 6-bit game characters at the script's instruction pointer into a script string, four characters to
+  three bytes; zero characters are dropped. The instruction pointer ends on the last byte read.
+  @param(len The number of packed bytes.)
+  @param(strIdx The script string to fill.) }
 procedure ConvGbString(len, strIdx: Byte);
 var
   i: Byte;
@@ -744,6 +703,10 @@ begin
   end
 end;
 
+{ Copies the zero-terminated string at a GBVM address into a script string. The zone-1 base address gives the current
+  character's name; addresses outside the zones give an empty string.
+  @param(strIdx The script string filled.)
+  @param(vmAddr The GBVM address.) }
 procedure DerefGbString(strIdx: Byte; vmAddr: Word);
 var
   zone: Byte;
@@ -773,6 +736,11 @@ begin
   end
 end;
 
+{ Prepares a script menu string: capitals are lower-cased, and each '~' is removed and the letter after it upper-cased
+  as that option's hotkey. Note: digits are shifted along with the capitals, which turns them into letters.
+  @param(menu The menu string, prepared in place.)
+  @param(options Receives the hotkeys in order.)
+  @param(shortcutCount Receives their count.) }
 procedure MenuToOptions(var menu: String; var options: Types.TString40; var shortcutCount: Byte);
 var
   i: Byte;
@@ -817,18 +785,19 @@ begin
 end;
 
 procedure EclVerticalMenu(query: Types.TString40; menu: String; qCol, mCol, hlCol: Byte; ulCol, ulRow, lrCol,
-                          lrRow: ShortInt; list: Types.PItem; addExit: Byte; var redraw: Byte; var idx: Integer;
-                          var selected: Types.PItem);
+                          lrRow: ShortInt; list: Types.PItem; addExit: Boolean; var redraw: Boolean;
+                          var idx: Integer; var selected: Types.PItem);
 var
   { Unused in this version; see the other implementations of this routine. }
   ch: Byte;
   options: Types.TString40;
   shortcutCount: Byte;
+  redrawByte: Byte absolute redraw;
 begin
   EclMenu.MenuToOptions(menu, options, shortcutCount);
   MenuCore.EnableChoices(1);
-  ch := MenuCore.MenuVertical(query, GDConsts.selectMenuText, ulCol, ulRow, lrCol, lrRow, list, addExit, 1, redraw, idx,
-                              selected)
+  ch := MenuCore.MenuVertical(query, GDConsts.selectMenuText, ulCol, ulRow, lrCol, lrRow, list, Byte(addExit), 1,
+                              redrawByte, idx, selected)
 end;
 
 procedure EclCompareStr(leftOperand, rightOperand: String);
@@ -895,7 +864,6 @@ var
 begin
   item := cr^.items;
   while item <> nil do begin
-    { heavy items are harder to lift: -90, -50 }
     if item^.weight > 255 then begin
       if chance > 90 then chance := chance - 90
       else chance := 0
@@ -907,7 +875,7 @@ begin
     nextItem := item^.next;
     if roll <= chance then begin
       if item^.equipped <> 0 then ViewChar.ToggleReadyItem(item);
-      CharHlp.RemoveItem(cr, item)
+      CharHlp.RemoveItem(cr, Types.PItem(item))
     end;
     item := nextItem
   end
@@ -973,10 +941,6 @@ begin
     GDVars.mapState.wallAhead := View3D.GetWallType(GDVars.mapState.x, GDVars.mapState.y,
                                                       GDVars.mapState.facing)
   end
-end;
-
-procedure NoopEclMenu;
-begin
 end;
 begin
 end.

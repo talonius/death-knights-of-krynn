@@ -4,7 +4,7 @@
 {$O+,F+,A-}
 unit CbtMap;
 interface
-uses C_Dir, C_Ifc, C_Terr, Types, GDConsts, GDVars, Blit, MapTiles, Music, TextRend, Crt;
+uses C_Dir, C_Ifc, C_Terr, GDConsts, GDVars, Blit, MapTiles, Music, TextRend, Crt, Types;
 
 { Gives the direction from one combatant's arena cell to another's.
   @param(src The combatant looked from.)
@@ -12,27 +12,11 @@ uses C_Dir, C_Ifc, C_Terr, Types, GDConsts, GDVars, Blit, MapTiles, Music, TextR
   @returns(The direction 0..7.) }
 function DirectionToward(src, dst: Types.PCharacter): Byte;
 
-{ Gives the direction, clockwise from north, from one point to another: the first of the eight whose sector holds the
-  second. The tests multiply by 106 or 618 and divide by 256: 106/256 and 618/256 approximate tan 22.5 and tan 67.5
-  degrees.
-  @param(x1 The column looked from.)
-  @param(y1 The row looked from.)
-  @param(x2 The column looked at.)
-  @param(y2 The row looked at.)
-  @returns(The direction 0..7.) }
-function DirectionBetween(x1, y1, x2, y2: Integer): Byte;
-
 { Returns the terrain at an arena cell, looking under a cloud (28, 29) or a fallen body (31) to what lies beneath.
   @param(x Arena column.)
   @param(y Arena row.)
   @returns(The terrain index.) }
 function ResolveTerrain(x, y: ShortInt): Byte;
-
-{ Empty routine with no callers. }
-procedure NoopCbtMapA;
-
-{ Empty routine with no callers. }
-procedure NoopCbtMapB;
 
 { Finds where one tile of a creature icon lies relative to the icon's upper-left cell.
   @param(size The icon size; 0 for no icon.)
@@ -42,20 +26,11 @@ procedure NoopCbtMapB;
   @returns(True when the icon uses the tile; False for size 0 or an unused tile, whose column offset is negative.) }
 function GetIconTileDelta(size, idx: Byte; var dx, dy: ShortInt): Boolean;
 
-{ Recomputes each arena creature's view coordinates from its arena cell and the view's upper-left cell. }
-procedure CalcGridDeltas;
-
 { Empty routine. }
 procedure SetCombatPalette;
 
 { Empty routine. }
 procedure SetNoncombatPalette;
-
-{ Repaints the terrain under the cursor's footprint at an arena cell, draws the cursor there when it is on, then redraws
-  the creature standing on the cell if it is visible.
-  @param(x Arena column of the cell.)
-  @param(y Arena row of the cell.) }
-procedure DrawCursorCell(x, y: ShortInt);
 
 { Redraws one arena cell: repaints its terrain (the whole icon footprint when a creature stands there, through
   UpdateCombatMapTile), then the creature's sprite if it is visible.
@@ -167,33 +142,18 @@ function IsValidCreatureLoc(cr: Types.PCharacter; x, y: Byte; moving: Boolean): 
   @param(delta How far it may lie from the view center before the view moves; 255 forces a full redraw.)
   @param(cursor True to draw the cursor.) }
 procedure DisplayMapViewCentered(cr: Types.PCharacter; delta: Byte; cursor: Boolean);
-
-{ Draws arena cell (acol, arow) at view cell (vcol, vrow) into the composite buffer; a cloud, fallen body or code 30
-  cell is drawn as the terrain beneath with the overlay's icon on top.
-  @param(vcol View column.)
-  @param(vrow View row.)
-  @param(acol Arena column.)
-  @param(arow Arena row.) }
-procedure DrawTerrainCell(vcol, vrow, acol, arow: ShortInt);
-
-{ Recenters the 7x7 view on a target cell when it lies farther from the view center than allowed, keeping the view
-  inside the arena, then draws the view's terrain and recomputes the creatures' view coordinates.
-  @param(x Arena column of the target.)
-  @param(y Arena row of the target.)
-  @param(delta How far the target may lie from the view center; 255 forces a redraw.)
-  @returns(True when the view was redrawn.) }
-function BuildViewBuffer(x, y: ShortInt; delta: Byte): Boolean;
 implementation
 
 function GetIconTileDelta(size, idx: Byte; var dx, dy: ShortInt): Boolean;
 begin
   GetIconTileDelta := False;
   if size = 0 then Exit;
-  dx := GDConsts.combatTables.iconDelta[size, idx].dx;
-  dy := GDConsts.combatTables.iconDelta[size, idx].dy;
+  dx := GDConsts.iconDelta[size, idx].dx;
+  dy := GDConsts.iconDelta[size, idx].dy;
   if dx >= 0 then GetIconTileDelta := True
 end;
 
+{ Recomputes each arena creature's view coordinates from its arena cell and the view's upper-left cell. }
 procedure CalcGridDeltas;
 var i: Byte;
 begin
@@ -211,6 +171,12 @@ procedure SetNoncombatPalette;
 begin
 end;
 
+{ Draws arena cell (acol, arow) at view cell (vcol, vrow) into the composite buffer; a cloud, fallen body or code 30
+  cell is drawn as the terrain beneath with the overlay's icon on top.
+  @param(vcol View column.)
+  @param(vrow View row.)
+  @param(acol Arena column.)
+  @param(arow Arena row.) }
 procedure DrawTerrainCell(vcol, vrow, acol, arow: ShortInt);
 var
   t: Byte;
@@ -223,17 +189,17 @@ begin
   vrow := vrow * 3;
   t := GDVars.arena^.cells[arow, acol];
   if (t > 69) or (t = 0) then t := 21;
-  baseId := GDConsts.combatTables.terrain[t].code;
+  baseId := GDConsts.terrain[t].code;
   if t in [C_Terr.TERRAIN_CLOUDKILL..C_Terr.TERRAIN_CORPSE] then begin
     t := CbtMap.ResolveTerrain(acol, arow);
-    drawId := GDConsts.combatTables.terrain[t].code;
+    drawId := GDConsts.terrain[t].code;
     case t of
       C_Terr.TERRAIN_STINKING_CLOUD, C_Terr.TERRAIN_CLOUDKILL: begin
         p := GDVars.cloudList;
         while p <> nil do begin
           for i := 1 to 9 do
-            if (p^.covered[i] <> 0) and (p^.x + GDConsts.combatTables.directionX[GDConsts.patchDir[i]] = acol) and
-                (p^.y + GDConsts.combatTables.directionY[GDConsts.patchDir[i]] = arow) then
+            if (p^.covered[i] <> 0) and (p^.x + GDConsts.directionX[GDConsts.patchDir[i]] = acol) and
+                (p^.y + GDConsts.directionY[GDConsts.patchDir[i]] = arow) then
               t := p^.under[i];
           p := p^.next
         end
@@ -243,7 +209,7 @@ begin
           t := GDVars.downed[i].terrain
     end;
     if (t > 69) or (t = 0) then t := 21;
-    drawId := GDConsts.combatTables.terrain[t].code;
+    drawId := GDConsts.terrain[t].code;
     Blit.BlitTileCell(vcol, vrow, drawId, GDConsts.pictureMode, GDVars.tileSheet,
                       GDVars.compositeBuffer);
     Blit.BlitTileCell(vcol, vrow, 0, GDConsts.iconFrame, GDVars.iconAnimations[baseId + 13, 0],
@@ -253,6 +219,10 @@ begin
                       GDVars.compositeBuffer)
 end;
 
+{ Repaints the terrain under the cursor's footprint at an arena cell, draws the cursor there when it is on, then redraws
+  the creature standing on the cell if it is visible.
+  @param(x Arena column of the cell.)
+  @param(y Arena row of the cell.) }
 procedure DrawCursorCell(x, y: ShortInt);
 var
   relX: ShortInt;
@@ -389,6 +359,12 @@ begin
     end
 end;
 
+{ Recenters the 7x7 view on a target cell when it lies farther from the view center than allowed, keeping the view
+  inside the arena, then draws the view's terrain and recomputes the creatures' view coordinates.
+  @param(x Arena column of the target.)
+  @param(y Arena row of the target.)
+  @param(delta How far the target may lie from the view center; 255 forces a redraw.)
+  @returns(True when the view was redrawn.) }
 function BuildViewBuffer(x, y: ShortInt; delta: Byte): Boolean;
 var d: Byte;
   { Unused in this version; see the other implementations of this routine. }
@@ -446,8 +422,8 @@ var
   tx: ShortInt;
   ty: ShortInt;
 begin
-  tx := x + GDConsts.combatTables.directionX[dir];
-  ty := y + GDConsts.combatTables.directionY[dir];
+  tx := x + GDConsts.directionX[dir];
+  ty := y + GDConsts.directionY[dir];
   if CbtMap.BuildViewBuffer(tx, ty, delta) then begin
     for i := 1 to GDVars.creatureCount do begin
       p := GDVars.creatures[i];
@@ -540,8 +516,8 @@ begin
   y := GDVars.arenaLoc[slot].y;
   for i := 0 to 3 do begin
     if CbtMap.GetIconTileDelta(GDVars.arenaLoc[slot].size, i, tdx, tdy) then begin
-      nx := x + tdx + GDConsts.combatTables.directionX[dir];
-      ny := y + tdy + GDConsts.combatTables.directionY[dir];
+      nx := x + tdx + GDConsts.directionX[dir];
+      ny := y + tdy + GDConsts.directionY[dir];
       CbtMap.GetArenaContents(nx, ny, c, t);
       if c = slot then c := 0;
       if c > 0 then crIdx := c;
@@ -549,8 +525,8 @@ begin
       else if t = C_Terr.TERRAIN_CLOUDKILL then adj28 := 1;
       if (t = 0) or (terrIdx = 0) then
         terrIdx := 0
-      else if GDConsts.combatTables.terrain[t].cost >= best then begin
-        best := GDConsts.combatTables.terrain[t].cost;
+      else if GDConsts.terrain[t].cost >= best then begin
+        best := GDConsts.terrain[t].cost;
         terrIdx := t
       end
     end
@@ -589,7 +565,8 @@ begin
           if CbtMap.ViewCoordsValid(GDVars.gridX[slot] + tdx, GDVars.gridY[slot] + tdy) then
             Blit.BlitTileClipped((GDVars.gridX[slot] + tdx) * 3, (GDVars.gridY[slot] + tdy) * 3, 0,
                                  GDConsts.saveUnderBit + GDConsts.iconFrame,
-                                 GDVars.iconAnimations[23, frame mod 2], GDVars.compositeBuffer);
+                                 GDVars.iconAnimations[23, frame mod 2],
+                                 GDVars.compositeBuffer);
       Blit.FlushView;
       Delay(10)
     end;
@@ -631,7 +608,7 @@ begin
     GDVars.arenaLoc[slot].x := x;
     GDVars.arenaLoc[slot].y := y;
     CbtMap.ProbeDirection(cr, C_Dir.CENTER, c, t, adj29, adj28);
-    if (c <> 0) or (t = 0) or (GDConsts.combatTables.terrain[t].cost = C_Terr.TERRAIN_IMPASSABLE) then
+    if (c <> 0) or (t = 0) or (GDConsts.terrain[t].cost = C_Terr.TERRAIN_IMPASSABLE) then
       GDVars.arenaLoc[slot].size := 0
     else begin
       IsValidCreatureLoc := True;
@@ -644,8 +621,8 @@ begin
             end;
           found := False;
           for i := 1 to GDVars.downedCount do
-            if (GDVars.downed[i].cr <> nil) and (GDVars.downed[i].x = x) and
-                (GDVars.downed[i].y = y) then found := True;
+            if (GDVars.downed[i].cr <> nil) and (GDVars.downed[i].x = x) and (GDVars.downed[i].y = y) then
+              found := True;
           if not found then GDVars.arena^.cells[y, x] := t
         end;
       CbtMap.BuildArenaArrays
@@ -675,8 +652,8 @@ begin
     p := GDVars.cloudList;
     while p <> nil do begin
       for i := 1 to 9 do
-        if (p^.covered[i] <> 0) and (p^.x + GDConsts.combatTables.directionX[GDConsts.patchDir[i]] = x) and
-            (p^.y + GDConsts.combatTables.directionY[GDConsts.patchDir[i]] = y) then
+        if (p^.covered[i] <> 0) and (p^.x + GDConsts.directionX[GDConsts.patchDir[i]] = x) and
+            (p^.y + GDConsts.directionY[GDConsts.patchDir[i]] = y) then
           t := p^.under[i];
       p := p^.next
     end
@@ -688,6 +665,14 @@ begin
   ResolveTerrain := t
 end;
 
+{ Gives the direction, clockwise from north, from one point to another: the first of the eight whose sector holds the
+  second. The tests multiply by 106 or 618 and divide by 256: 106/256 and 618/256 approximate tan 22.5 and tan 67.5
+  degrees.
+  @param(x1 The column looked from.)
+  @param(y1 The row looked from.)
+  @param(x2 The column looked at.)
+  @param(y2 The row looked at.)
+  @returns(The direction 0..7.) }
 function DirectionBetween(x1, y1, x2, y2: Integer): Byte;
 var
   d: Byte;
@@ -723,14 +708,6 @@ function DirectionToward(src, dst: Types.PCharacter): Byte;
 begin
   DirectionToward := CbtMap.DirectionBetween(CbtMap.CombatCellX(src), CbtMap.CombatCellY(src), CbtMap.CombatCellX(dst),
                                              CbtMap.CombatCellY(dst))
-end;
-
-procedure NoopCbtMapA;
-begin
-end;
-
-procedure NoopCbtMapB;
-begin
 end;
 begin
 end.

@@ -1,5 +1,5 @@
 @ECHO OFF
-REM Death Knights of Krynn v1.0 -- THE BUILD.
+REM Death Knights of Krynn v1.1 -- THE BUILD.
 REM
 REM Runs under DOS. TASM, TPC and Microsoft's EXEPACK write every byte of the
 REM two files SSI shipped, and they are left under their shipped names:

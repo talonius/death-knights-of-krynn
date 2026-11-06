@@ -41,17 +41,24 @@ begin
     if setId = 0 then begin
       { the disk each 8x8 block is on }
       case fileId of
-        1: suffix := '1'; 2: suffix := '4'; 3, 4: suffix := '2';
-        5, 6: suffix := '3'; 7: suffix := '5';
-      else Str(GDVars.diskNumber, suffix) end
+        1: suffix := '1';
+        2: suffix := '4';
+        3, 4: suffix := '2';
+        5, 6: suffix := '3';
+        7: suffix := '5';
+      else Str(GDVars.diskNumber, suffix)
+      end
     end else begin
-      if GDVars.diskNumber = 5 then suffix := '1' else Str(GDVars.diskNumber, suffix)
+      if GDVars.diskNumber = 5 then suffix := '1'
+      else Str(GDVars.diskNumber, suffix)
     end;
     Blit.LoadPic('8x8d' + suffix, fileId, Boolean(GDConsts.iconFrame), transp, GDVars.symbolSets[setId]);
     if GDVars.symbolSets[setId] = nil then begin
       Blit.RestoreVideoMode;
-      WriteLn(Output, 'Unable to load ', fileId, ' from 8x8D' + suffix);
-      ch := GameIo.ReadGameKey; Blit.RestoreVideoMode; GameIo.ExitGame
+      WriteLn(Output, GDConsts.loadError, fileId, GDConsts.from8x8 + suffix);
+      ch := GameIo.ReadGameKey;
+      Blit.RestoreVideoMode;
+      GameIo.ExitGame
     end
   end
 end;

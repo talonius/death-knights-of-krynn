@@ -11,11 +11,6 @@ interface
   @param(wall Wall color.) }
 procedure SetViewColors(sky, ceiling, floor, wall: Byte);
 
-{ Fills the view's sky, floor and wall bands and draws the backdrop over them: the area's BACK picture when the
-  current cell's event has bit 7 set, otherwise the sky-and-ground picture, with the evening sky over it from hour
-  14. }
-procedure DrawBackdrop;
-
 { Reads the wall type on one side of a cell: north and east share one map plane and south and west another, one nibble
   each. Off-map coordinates wrap around the 16x16 map, except in scripts 0 and 80, where they give 0.
   @param(col The map column.)
@@ -58,25 +53,15 @@ procedure LoadWallSet(blockId, wallset: Byte);
   0; a missing or wrong-sized block aborts as LoadWallSet does.
   @param(blockId GEO block to load.) }
 procedure Load3DMap(blockId: Byte);
-
-{ Empty routine with no callers. }
-procedure NoopView3D;
 implementation
 uses C_Dir, GDConsts, GDVars, Crt, Sym8x8, Blit, TextRend, DaxIo, GameIo, Types;
 type
-  { one wall type's 156 symbol numbers, slot by slot }
-  TWallSlice = array[0..155] of Byte;
-  { by wall type, the nibble GetWallType returns }
-  TWallSlices = array[1..20] of TWallSlice;
-  PWallSlices = ^TWallSlices;
-  { one WALLDEF block }
-  TWallDef = array[1..5] of TWallSlice;
-  { GameInit allocates three; the loader's guard admits a fourth }
-  TWallDefs = array[1..4] of TWallDef;
-  PWallDefs = ^TWallDefs;
-var
-  wallSlices: PWallSlices absolute GDVars.wallTileBuf;
-  wallDefs: PWallDefs absolute GDVars.wallTileBuf;
+  TWallRow = array[0..155] of Byte;
+  TWallGrid = array[1..64] of TWallRow;
+  PWallGrid = ^TWallGrid;
+  TWallEntry = array[1..5] of TWallRow;
+  TWallBig = array[1..16] of TWallEntry;
+  PWallBig = ^TWallBig;
 
 { The automap: the 11x11 cells around a map cell, kept on the map, each drawn as one of sixteen wall-combination
   symbols, and the party's arrow.
@@ -109,7 +94,6 @@ begin
     cellY := winY + originY;
     for winX := 0 to 10 do begin
       cellX := winX + originX;
-      { the sixteen wall-combination symbols, a bit per side }
       symbol := 281;
       if View3D.GetWallType(cellX, cellY, C_Dir.NORTH) > 0 then Inc(symbol);
       if View3D.GetWallType(cellX, cellY, C_Dir.EAST) > 0 then Inc(symbol, 2);
@@ -118,9 +102,7 @@ begin
       Sym8x8.Put8x8Sym(winX + 3 - 1, winY + 3 - 1, symbol, True, Boolean(GDConsts.pictureMode));
     end;
   end;
-  { the four party arrows }
-  Sym8x8.Put8x8Sym(partyX + 3 - 1, partyY + 3 - 1, (facing div 2) + 297, True,
-                   Boolean(GDConsts.pictureMode));
+  Sym8x8.Put8x8Sym(partyX + 3 - 1, partyY + 3 - 1, (facing shr 1) + 297, True, Boolean(GDConsts.pictureMode));
   Blit.FlushView;
 end;
 
@@ -132,6 +114,9 @@ begin
   GDVars.paletteWall := wall;
 end;
 
+{ Fills the view's sky, floor and wall bands and draws the backdrop over them: the area's BACK picture when the
+  current cell's event has bit 7 set, otherwise the sky-and-ground picture, with the evening sky over it from hour
+  14. }
 procedure DrawBackdrop;
 var
   { Unused in this version; see the other implementations of this routine. }
@@ -180,8 +165,8 @@ begin
   for cellY := y to lastY do
     for cellX := x to lastX do begin
       if (cellY >= 0) and (cellY <= 10) and (cellX >= 0) and (cellX <= 10) then
-        if wallSlices^[wallType][symbolIndex] > 0 then
-          Sym8x8.Put8x8Sym(cellX + 3 - 1, cellY + 3 - 1, wallSlices^[wallType][symbolIndex], True,
+        if PWallGrid(GDVars.wallTileBuf)^[wallType][symbolIndex] > 0 then
+          Sym8x8.Put8x8Sym(cellX + 3 - 1, cellY + 3 - 1, PWallGrid(GDVars.wallTileBuf)^[wallType][symbolIndex], True,
                            Boolean(GDConsts.iconFrame));
       Inc(symbolIndex);
     end;
@@ -258,8 +243,8 @@ var
   backFacing: Byte;
   currentX: Integer;
   currentY: Integer;
-  forwardDx: Integer;
-  forwardDy: Integer;
+  forwardDx: Word;
+  forwardDy: Word;
   cellX: Integer;
   cellY: Integer;
   lateral: Byte;
@@ -281,8 +266,8 @@ begin
   rightFacing := (facing + 2) mod 8;
   currentX := ShortInt(tileX);
   currentY := ShortInt(tileY);
-  forwardDx := GDConsts.combatTables.directionX[facing];
-  forwardDy := GDConsts.combatTables.directionY[facing];
+  forwardDx := GDConsts.directionX[facing];
+  forwardDy := GDConsts.directionY[facing];
   depth := 2;
   Inc(currentX, depth * forwardDx);
   Inc(currentY, depth * forwardDy);
@@ -290,7 +275,11 @@ begin
     case depth of
     2:
     begin
-      cellX := currentX; cellY := currentY; lateral := 0; xOffset := 0; previousWall := 0;
+      cellX := currentX;
+      cellY := currentY;
+      lateral := 0;
+      xOffset := 0;
+      previousWall := 0;
       while lateral < 4 do begin
         frontWall := View3D.GetWallType(cellX, cellY, facing);
         if not View3D.Valid3DCoords(cellX, cellY) then
@@ -302,16 +291,21 @@ begin
           View3D.DrawWallSlice(GDConsts.sliceX[0] + xOffset, GDConsts.sliceY[0], frontWall, 0);
         end else begin
           if previousWall > 0 then
-            if View3D.GetWallType(cellX - GDConsts.combatTables.directionX[leftFacing],
-                         cellY - GDConsts.combatTables.directionY[leftFacing], leftFacing) <> 0 then
+            if View3D.GetWallType(cellX - GDConsts.directionX[leftFacing],
+                                  cellY - GDConsts.directionY[leftFacing], leftFacing) <> 0 then
               View3D.DrawWallSlice(GDConsts.sliceX[9] + xOffset + 1, GDConsts.sliceY[9], previousWall, 9);
           previousWall := 0;
         end;
-        Inc(lateral); Dec(xOffset, 2);
-        cellX := cellX + GDConsts.combatTables.directionX[leftFacing];
-        cellY := cellY + GDConsts.combatTables.directionY[leftFacing];
+        Inc(lateral);
+        Dec(xOffset, 2);
+        cellX := cellX + GDConsts.directionX[leftFacing];
+        cellY := cellY + GDConsts.directionY[leftFacing];
       end;
-      cellX := currentX; cellY := currentY; lateral := 0; xOffset := 0; previousWall := 0;
+      cellX := currentX;
+      cellY := currentY;
+      lateral := 0;
+      xOffset := 0;
+      previousWall := 0;
       while lateral < 4 do begin
         frontWall := View3D.GetWallType(cellX, cellY, facing);
         if not View3D.Valid3DCoords(cellX, cellY) then
@@ -323,42 +317,51 @@ begin
           View3D.DrawWallSlice(GDConsts.sliceX[0] + xOffset, GDConsts.sliceY[0], frontWall, 0);
         end else begin
           if previousWall > 0 then
-            if View3D.GetWallType(cellX - GDConsts.combatTables.directionX[rightFacing],
-                         cellY - GDConsts.combatTables.directionY[rightFacing], rightFacing) <> 0 then
+            if View3D.GetWallType(cellX - GDConsts.directionX[rightFacing],
+                                  cellY - GDConsts.directionY[rightFacing], rightFacing) <> 0 then
               View3D.DrawWallSlice(GDConsts.sliceX[9] + xOffset - 1, GDConsts.sliceY[9], previousWall, 9);
           previousWall := 0;
         end;
-        Inc(lateral); Inc(xOffset, 2);
-        cellX := cellX + GDConsts.combatTables.directionX[rightFacing];
-        cellY := cellY + GDConsts.combatTables.directionY[rightFacing];
+        Inc(lateral);
+        Inc(xOffset, 2);
+        cellX := cellX + GDConsts.directionX[rightFacing];
+        cellY := cellY + GDConsts.directionY[rightFacing];
       end;
-      cellX := currentX; cellY := currentY; lateral := 0; xOffset := 0;
+      cellX := currentX;
+      cellY := currentY;
+      lateral := 0;
+      xOffset := 0;
       while lateral < 3 do begin
         sideWall := View3D.GetWallType(cellX, cellY, leftFacing);
         if sideWall <> 0 then
           if lateral = 0 then View3D.DrawWallSlice(GDConsts.sliceX[1] + xOffset, GDConsts.sliceY[1], sideWall, 1)
           else View3D.DrawWallSlice(GDConsts.sliceX[1] + xOffset - 1, GDConsts.sliceY[1], sideWall, 1);
-        Inc(lateral); Dec(xOffset, 2);
-        cellX := cellX + GDConsts.combatTables.directionX[leftFacing];
-        cellY := cellY + GDConsts.combatTables.directionY[leftFacing];
+        Inc(lateral);
+        Dec(xOffset, 2);
+        cellX := cellX + GDConsts.directionX[leftFacing];
+        cellY := cellY + GDConsts.directionY[leftFacing];
       end;
-      cellX := currentX; cellY := currentY; lateral := 0; xOffset := 0;
+      cellX := currentX;
+      cellY := currentY;
+      lateral := 0;
+      xOffset := 0;
       while lateral < 3 do begin
         sideWall := View3D.GetWallType(cellX, cellY, rightFacing);
         if sideWall <> 0 then
           if lateral = 0 then View3D.DrawWallSlice(GDConsts.sliceX[2] + xOffset, GDConsts.sliceY[2], sideWall, 2)
           else View3D.DrawWallSlice(GDConsts.sliceX[2] + xOffset + 1, GDConsts.sliceY[2], sideWall, 2);
-        Inc(lateral); Inc(xOffset, 2);
-        cellX := cellX + GDConsts.combatTables.directionX[rightFacing];
-        cellY := cellY + GDConsts.combatTables.directionY[rightFacing];
+        Inc(lateral);
+        Inc(xOffset, 2);
+        cellX := cellX + GDConsts.directionX[rightFacing];
+        cellY := cellY + GDConsts.directionY[rightFacing];
       end;
     end;
     1:
     begin
-      cellX := currentX + GDConsts.combatTables.directionX[leftFacing];
-      cellX := cellX + GDConsts.combatTables.directionX[leftFacing];
-      cellY := currentY + GDConsts.combatTables.directionY[leftFacing];
-      cellY := cellY + GDConsts.combatTables.directionY[leftFacing];
+      cellX := currentX + GDConsts.directionX[leftFacing];
+      cellX := cellX + GDConsts.directionX[leftFacing];
+      cellY := currentY + GDConsts.directionY[leftFacing];
+      cellY := cellY + GDConsts.directionY[leftFacing];
       lateral := 0;
       xOffset := -6;
       while lateral < 3 do begin
@@ -366,14 +369,15 @@ begin
         if frontWall <> 0 then View3D.DrawWallSlice(GDConsts.sliceX[3] + xOffset, GDConsts.sliceY[3], frontWall, 3);
         sideWall := View3D.GetWallType(cellX, cellY, leftFacing);
         if sideWall <> 0 then View3D.DrawWallSlice(GDConsts.sliceX[4] + xOffset, GDConsts.sliceY[4], sideWall, 4);
-        Inc(lateral); Inc(xOffset, 3);
-        cellX := cellX + GDConsts.combatTables.directionX[rightFacing];
-        cellY := cellY + GDConsts.combatTables.directionY[rightFacing];
+        Inc(lateral);
+        Inc(xOffset, 3);
+        cellX := cellX + GDConsts.directionX[rightFacing];
+        cellY := cellY + GDConsts.directionY[rightFacing];
       end;
-      cellX := currentX + GDConsts.combatTables.directionX[rightFacing];
-      cellX := cellX + GDConsts.combatTables.directionX[rightFacing];
-      cellY := currentY + GDConsts.combatTables.directionY[rightFacing];
-      cellY := cellY + GDConsts.combatTables.directionY[rightFacing];
+      cellX := currentX + GDConsts.directionX[rightFacing];
+      cellX := cellX + GDConsts.directionX[rightFacing];
+      cellY := currentY + GDConsts.directionY[rightFacing];
+      cellY := cellY + GDConsts.directionY[rightFacing];
       lateral := 0;
       xOffset := 6;
       while lateral < 3 do begin
@@ -381,41 +385,46 @@ begin
         if frontWall <> 0 then View3D.DrawWallSlice(GDConsts.sliceX[3] + xOffset, GDConsts.sliceY[3], frontWall, 3);
         sideWall := View3D.GetWallType(cellX, cellY, rightFacing);
         if sideWall <> 0 then View3D.DrawWallSlice(GDConsts.sliceX[5] + xOffset, GDConsts.sliceY[5], sideWall, 5);
-        Inc(lateral); Dec(xOffset, 3);
-        cellX := cellX + GDConsts.combatTables.directionX[leftFacing];
-        cellY := cellY + GDConsts.combatTables.directionY[leftFacing];
+        Inc(lateral);
+        Dec(xOffset, 3);
+        cellX := cellX + GDConsts.directionX[leftFacing];
+        cellY := cellY + GDConsts.directionY[leftFacing];
       end;
     end;
     0:
     begin
-      cellX := currentX + GDConsts.combatTables.directionX[leftFacing];
-      cellY := currentY + GDConsts.combatTables.directionY[leftFacing];
-      lateral := 0; xOffset := -7;
+      cellX := currentX + GDConsts.directionX[leftFacing];
+      cellY := currentY + GDConsts.directionY[leftFacing];
+      lateral := 0;
+      xOffset := -7;
       while lateral < 2 do begin
         frontWall := View3D.GetWallType(cellX, cellY, facing);
         if frontWall <> 0 then View3D.DrawWallSlice(GDConsts.sliceX[6] + xOffset, GDConsts.sliceY[6], frontWall, 6);
         sideWall := View3D.GetWallType(cellX, cellY, leftFacing);
         if sideWall <> 0 then View3D.DrawWallSlice(GDConsts.sliceX[7] + xOffset, GDConsts.sliceY[7], sideWall, 7);
-        Inc(lateral); Inc(xOffset, 7);
-        cellX := cellX + GDConsts.combatTables.directionX[rightFacing];
-        cellY := cellY + GDConsts.combatTables.directionY[rightFacing];
+        Inc(lateral);
+        Inc(xOffset, 7);
+        cellX := cellX + GDConsts.directionX[rightFacing];
+        cellY := cellY + GDConsts.directionY[rightFacing];
       end;
-      cellX := currentX + GDConsts.combatTables.directionX[rightFacing];
-      cellY := currentY + GDConsts.combatTables.directionY[rightFacing];
-      lateral := 0; xOffset := 7;
+      cellX := currentX + GDConsts.directionX[rightFacing];
+      cellY := currentY + GDConsts.directionY[rightFacing];
+      lateral := 0;
+      xOffset := 7;
       while lateral < 2 do begin
         frontWall := View3D.GetWallType(cellX, cellY, facing);
         if frontWall <> 0 then View3D.DrawWallSlice(GDConsts.sliceX[6] + xOffset, GDConsts.sliceY[6], frontWall, 6);
         sideWall := View3D.GetWallType(cellX, cellY, rightFacing);
         if sideWall <> 0 then View3D.DrawWallSlice(GDConsts.sliceX[8] + xOffset, GDConsts.sliceY[8], sideWall, 8);
-        Inc(lateral); Dec(xOffset, 7);
-        cellX := cellX + GDConsts.combatTables.directionX[leftFacing];
-        cellY := cellY + GDConsts.combatTables.directionY[leftFacing];
+        Inc(lateral);
+        Dec(xOffset, 7);
+        cellX := cellX + GDConsts.directionX[leftFacing];
+        cellY := cellY + GDConsts.directionY[leftFacing];
       end;
     end;
     end;
-    currentX := currentX + GDConsts.combatTables.directionX[backFacing];
-    currentY := currentY + GDConsts.combatTables.directionY[backFacing];
+    currentX := currentX + GDConsts.directionX[backFacing];
+    currentY := currentY + GDConsts.directionY[backFacing];
     Dec(depth);
   until depth = 255;
   Blit.FlushView;
@@ -430,10 +439,6 @@ var
 begin
   name := 'back' + suffix;
   Blit.LoadPic(name, blockId, Boolean(GDConsts.pictureMode), GDVars.paletteSky, GDVars.backdrop);
-end;
-
-procedure NoopView3D;
-begin
 end;
 
 procedure LoadWallSet(blockId, wallset: Byte);
@@ -470,9 +475,9 @@ begin
   TextRend.PrintSpaces(GDConsts.messageColumn, GDConsts.messageRow, Black, GDConsts.screenWidth);
   TextRend.DisplayString(GDConsts.messageColumn, GDConsts.messageRow, LightGreen, Black, GDConsts.loadingMessage);
   DaxIo.LoadDax('WALLDEF' + suffix, GDConsts.daxExtension, blockId, dataSize, Types.PBytes(data));
-  if (dataSize = 0) or ((dataSize div SizeOf(TWallDef)) + wallset > 4) then begin
+  if (dataSize = 0) or ((dataSize div SizeOf(TWallEntry)) + wallset > 4) then begin
     Blit.RestoreVideoMode;
-    WriteLn('Unable to load ', blockId, ' from WALLDEF' + suffix + '.');
+    WriteLn(GDConsts.loadError, blockId, GDConsts.fromWallMsg + suffix + '.');
     key := Byte(GameIo.ReadGameKey);
     Blit.RestoreVideoMode;
     GameIo.ExitGame
@@ -482,8 +487,8 @@ begin
   readOfs := 0;
   defIndex := 1;
   repeat
-    Move(data^[readOfs], wallDefs^[wallset + defIndex], SizeOf(TWallDef));
-    Inc(readOfs, SizeOf(TWallDef));
+    Move(data^[readOfs], PWallBig(GDVars.wallTileBuf)^[wallset + defIndex], SizeOf(TWallEntry));
+    Inc(readOfs, SizeOf(TWallEntry));
     Inc(defIndex)
   until readOfs >= dataSize;
   FreeMem(data, dataSize);
@@ -506,9 +511,9 @@ begin
   if GDVars.diskNumber = 5 then suffix := '1'
   else Str(GDVars.diskNumber, suffix);
   DaxIo.LoadDax('GEO' + suffix, GDConsts.daxExtension, blockId, dataSize, Types.PBytes(data));
-  if (dataSize = 0) or (dataSize <> SizeOf(Types.TGeoMap) + 2) then begin
+  if (dataSize = 0) or (dataSize <> 1026) then begin
     Blit.RestoreVideoMode;
-    WriteLn('Unable to load geo in Load3DMap.');
+    WriteLn(GDConsts.geoError);
     key := Byte(GameIo.ReadGameKey);
     Blit.RestoreVideoMode;
     GameIo.ExitGame;

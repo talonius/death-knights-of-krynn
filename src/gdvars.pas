@@ -142,8 +142,8 @@ var
   { what the character's carried items weigh: RecalcStats clears it and sums the chain into it, and never reads it
     back }
   equippedWeight: Word;
-  { the free list's top block, moved below the Tandy reserve; it becomes FreePtr }
-  tandyFreeBlock: Types.PFreeBlk;
+  { the Tandy reserve's ceiling, which becomes HeapEnd }
+  tandyFreeBlock: Pointer;
   { the digit key last read }
   configKey: Char;
   { the menu answer ReadMenuChoice returns }
@@ -167,9 +167,9 @@ var
   { 1 once the Tandy adapter is chosen }
   tandySelected: Byte;
   { the directory the EXE runs from; OpenWithRetry swaps it with masterPath when a file is missing }
-  dataPath: String[79];
+  dataPath: String[67];
   { the other directory, or the other floppy drive }
-  masterPath: String[79];
+  masterPath: String[67];
   { the drive letter the retry prompt names }
   masterDrive: Char;
 
@@ -744,10 +744,8 @@ var
   extendedMode: Byte;
   { undead among the loaded monsters; the cap on turn-undead tries }
   undeadCount: Byte;
-  { FreePtr after the Tandy reserve was set aside; never read }
-  tandyGfxReserve: Pointer;
   { never read or written }
-  tandyGfxReserveTail: Byte;
+  joystickZoneKeysTail: array[0..4] of Byte;
   { the overlay manager's own reader, which GameIo.OverlayReadWithBeep retries }
   savedOvrRead: Types.TOverlayReadFunc;
 

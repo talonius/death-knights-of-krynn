@@ -3,8 +3,8 @@
 {$O+,F+,A-}
 unit PostCbt;
 interface
-uses C_Class, C_Ifc, C_Npc, C_Side, C_Spell, C_Stat, C_Status, Crt, C_Keys, GDConsts, GDVars, Types,
-  TextRend, CharHlp, MenuCore, Border, FxEngine, GameIo, Magic, CharGen, Shop, ViewChar, Money;
+uses C_Class, C_Ifc, C_Npc, C_Side, C_Spell, C_Stat, C_Status, Crt, C_Keys, GDConsts, GDVars, TextRend,
+  CharHlp, MenuCore, Border, FxEngine, GameIo, Magic, CharGen, Money, Shop, ViewChar, Types;
 
 { Settles a fight, for EclVm: the results (not in a demo), the monsters removed from the party, stats recalculated;
   then, unless the party was destroyed, the summary and the treasure menu, the treasure discarded if the party fled and
@@ -18,11 +18,6 @@ procedure PostCombat;
   @param(items Whether the treasure holds items; updated likewise.) }
 procedure LootTakeMenu(var coins, items: Boolean);
 implementation
-const
-  TAKE_BOTH_QUERY = 'Take: ';
-  TAKE_BOTH_MENU = 'Money Items Exit';
-  PARTY_DESTROYED = 'The monsters rejoice for the party has been destroyed';
-  PRESS_ANY_KEY = 'Press any key to continue';
 
 procedure DetermineLootExp(var share: LongInt); forward;
 
@@ -344,7 +339,7 @@ begin
     if c <> #0 then done := True
     else begin
       done := False;
-      Shop.GiveItemCopyToCreature(itemToTake, failed);
+      Shop.GiveItemCopyToCreature(Pointer(itemToTake), failed);
       if not failed then begin
         p := GDVars.treasureItems;
         if p = itemToTake then GDVars.treasureItems := itemToTake^.next
@@ -374,7 +369,7 @@ begin
     if items then begin
       repeat
         MenuCore.EnableChoices(2);
-        c := Char(MenuCore.MenuHorizontal(PostCbt.TAKE_BOTH_QUERY, PostCbt.TAKE_BOTH_MENU, 1, 1));
+        c := Char(MenuCore.MenuHorizontal(GDConsts.takeQuery, GDConsts.moneyItemsMenu, 1, 1));
         if GDVars.menuExtendedKey <> 0 then begin
           case c of
             C_Keys.ESCAPE: done := True;
@@ -392,7 +387,6 @@ begin
           end
         end;
         CharHlp.DisplayParty(GDVars.currentCharacter);
-
           Money.DetermineTreasure(coins, items);
         if not coins or not items then done := True
       until done
@@ -473,7 +467,6 @@ begin
       #3: Money.ShareMoney;
       #4: Magic.CastSpell(detectSpell, 0, 0, changedByte);
       #5: begin
-
           Money.DetermineTreasure(GDVars.treasureHasMoney, GDVars.treasureHasItems);
         if GDVars.treasureHasMoney or GDVars.treasureHasItems then begin
           TextRend.DisplayMessageWindow(1, 17, 38, 22, LightGreen, Black, True, GDConsts.treasureLeft1);
@@ -506,8 +499,7 @@ begin
         Inc(GDVars.zone1^.monstersDef[GDConsts.monstersDefIndex + $7C00]);
         if first then GDVars.zone0^.firstMonsterDown := 1
       end;
-      if (p^.status = C_Status.RUNNING) and
-          (GDVars.zone1^.combatResult[GDConsts.combatResultIndex + $7C00] = 0) then
+      if (p^.status = C_Status.RUNNING) and (GDVars.zone1^.combatResult[GDConsts.combatResultIndex + $7C00] = 0) then
         GDVars.zone1^.combatResult[GDConsts.combatResultIndex + $7C00] := 1;
       first := False;
       next := p^.next;
@@ -570,8 +562,8 @@ begin
     Border.DrawWindowFrame(0);
     GDVars.currentColumn := 2;
     GDVars.currentRow := 6;
-    TextRend.DisplayMessageWindow(2, 5, 37, 22, LightGreen, Black, True, PostCbt.PARTY_DESTROYED);
-    TextRend.DisplayAndPause(LightMagenta, Black, PostCbt.PRESS_ANY_KEY)
+    TextRend.DisplayMessageWindow(2, 5, 37, 22, LightGreen, Black, True, GDConsts.partyDestroyed);
+    TextRend.DisplayAndPause(LightMagenta, Black, GDConsts.pressAnyKey)
   end;
   GDVars.slowText := 1;
   GDVars.zone1^.modMonThac0[GDConsts.modMonThac0Index + $7C00] := 0;

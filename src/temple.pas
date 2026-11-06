@@ -5,12 +5,12 @@
 {$O+,F+}
 unit Temple;
 interface
-uses C_Effect, C_Ifc, C_Race, C_Spell, C_Stat, C_Status, Crt, C_Keys, GDConsts, GDVars, Types,
-  FxEngine, CharHlp, TextRend, MenuCore, Magic, Border, ViewChar, Money;
 
 { The temple's main loop, for EclVm: it empties the pool, offers the main menu and asks before leaving money behind. }
 procedure TempleMainMenu;
 implementation
+uses C_Effect, C_Ifc, C_Race, C_Spell, C_Stat, C_Status, Crt, C_Keys, FxEngine, CharHlp, TextRend, MenuCore, Magic,
+  Border, ViewChar, Money, GDConsts, GDVars, Types;
 
 { Reports that the current character does not need the cure and asks whether to cast it anyway, with No as the default.
   @param(msg The report, printed after the character's name.)
@@ -25,7 +25,7 @@ end;
 { Removes the character's blindness, asking first when the character is not blind. }
 procedure CureBlindness;
 var
-  eff: Types.PEffect;
+  eff: Pointer;
   { Unused in this version; see the other implementations of this routine. }
   s: String;
   c: Char;
@@ -116,14 +116,14 @@ end;
   hit point, asking first when the character is not poisoned (a Yes then changes nothing). }
 procedure NeutralizePoison;
 var
-  eff: Types.PEffect;
+  eff: Pointer;
   c: Char;
   found: Boolean;
 begin
   found := False;
   c := Chr(GDConsts.yesKey);
   if CharHlp.HasEffect(GDVars.currentCharacter, C_Effect.POISONED, eff) then found := True;
-  if not found then c := Temple.ConfirmCureAnyway('is not poisoned.');
+  if not found then c := Temple.ConfirmCureAnyway(GDConsts.notPoisonedMessage);
   if (c = Chr(GDConsts.yesKey)) and found then begin
     if GDVars.currentCharacter^.hitPoints = 0 then GDVars.currentCharacter^.hitPoints := 1;
     GDVars.effectLock := 1;
@@ -141,7 +141,7 @@ procedure RemoveCurse;
 var
   cursed: Boolean;
   it: Types.PItem;
-  eff: Types.PEffect;
+  eff: Pointer;
   c: Char;
 begin
   c := Chr(GDConsts.yesKey);
@@ -154,10 +154,9 @@ begin
   if not cursed then
     if not CharHlp.HasEffect(GDVars.currentCharacter, C_Effect.CURSED,
                              eff) then c := Temple.ConfirmCureAnyway(GDConsts.notCursedMessage);
-  if c = Chr(GDConsts.yesKey) then begin
-    GDVars.spellTargetState.targets[1] := GDVars.currentCharacter;
-    Magic.SpellRemoveCurse
-  end;
+  if c =
+      Chr(GDConsts.yesKey) then begin GDVars.spellTargetState.targets[1] :=
+      GDVars.currentCharacter; Magic.SpellRemoveCurse end;
 end;
 
 { Returns a petrified character to play with one hit point, asking first when the character is not petrified (a Yes then
@@ -169,8 +168,7 @@ var
   c: Char;
 begin
   c := Chr(GDConsts.yesKey);
-  if GDVars.currentCharacter^.status <>
-      C_Status.STONED then c := Temple.ConfirmCureAnyway(GDConsts.notStonedMessage);
+  if GDVars.currentCharacter^.status <> C_Status.STONED then c := Temple.ConfirmCureAnyway(GDConsts.notStonedMessage);
   if (c = Chr(GDConsts.yesKey)) and (GDVars.currentCharacter^.status = C_Status.STONED) then begin
     GDVars.currentCharacter^.status := C_Status.OKAY;
     GDVars.currentCharacter^.enabled := 1;

@@ -4,8 +4,8 @@
 {$F+,O+,S-,R-,V-,B-,I-}
 unit ViewChar;
 interface
-uses C_Class, C_Effect, C_Ifc, C_Npc, C_Race, C_Stat, C_Status, Crt, C_Keys, GDConsts, GDVars, Types, CharHlp, TextRend,
-  MenuCore, Border, Magic, GameIo, CbtMap, Money, FxEngine;
+uses C_Class, C_Effect, C_Ifc, C_Npc, C_Race, C_Stat, C_Status, Crt, C_Keys, GDConsts, GDVars, CharHlp,
+  TextRend, MenuCore, Border, GameIo, FxEngine, Magic, Money, CbtMap, Types;
 
 { Draws the current character's sheet -- name, status, age, alignment, race, class with deity, robe or knightly order,
   levels, experience, stats, money, combat figures and readied weapon and armor -- and makes it the viewed character. }
@@ -52,7 +52,7 @@ procedure UseItem(itemPointer: Pointer; var done: Boolean);
   @param(mayStack Nonzero enables the stack check.)
   @param(itemPointer The item.)
   @returns(True when the character cannot take it.) }
-function CannotCarryItem(character: Types.PCharacter; mayStack: Byte; itemPointer: Pointer): Boolean;
+function CannotCarryItem(character: Pointer; mayStack: Byte; itemPointer: Pointer): Boolean;
 
 { Makes the previous (Up) or next (Down) party member current, or the one a mouse click picked.
   @param(key Up or Down, or the key a mouse click gives.) }
@@ -66,27 +66,6 @@ procedure SelectAdjacentCharacter(key: Char);
   @param(hasSpells Set True when the list has spells.)
   @returns(The spell picked, or 0.) }
 function SpellMenu(listMode, selectionType: Byte; var index: Integer; var hasSpells: Boolean): Byte;
-
-{ Tells whether a character is a paladin who may lay on hands: outside combat, okay, and not under effect 109.
-  @param(character The character.)
-  @returns(True when it may lay on hands.) }
-function CanHeal(character: Types.PCharacter): Boolean;
-
-{ Tells whether a character is a paladin with cure-disease uses left, outside combat and okay.
-  @param(character The character.)
-  @returns(True when it may cure disease.) }
-function CanCure(character: Types.PCharacter): Boolean;
-
-{ Heals a chosen character 2 x the paladin's level and puts the paladin under effect 109 for a day.
-  @param(character The paladin.) }
-procedure PaladinLayOnHands(character: Types.PCharacter);
-
-{ Asks whom to cure and does nothing more: no cure is applied and no use spent.
-  @param(character Unused.) }
-procedure PaladinCureDisease(character: Types.PCharacter);
-
-{ Empty routine with no callers. }
-procedure NoopViewChar;
 
 { Lets the player move the highlight through the party list and choose a character.
   @returns(True when one is chosen, False on exit.) }
@@ -106,7 +85,7 @@ function ClassConHpBonus(character: Types.PCharacter; classId: Byte): ShortInt;
   @param(classMask The classes whose level changes.)
   @param(divisor Number of classes sharing the hit points.)
   @param(gaining True for a level gained, False for one lost.) }
-procedure AdjustLevelHitPoints(character: Types.PCharacter; classMask, divisor: Byte; gaining: Boolean);
+procedure AdjustLevelHitPoints(character: Pointer; classMask, divisor: Byte; gaining: Boolean);
 
 { Drops (or, in the vault, gives) coins of a chosen kind, on the sheet or in the lower window.
   @param(onSheet True on the character sheet, False in the lower window.) }
@@ -125,6 +104,18 @@ function HitPointCap(character: Types.PCharacter): Byte;
 procedure JoinItem(item: Types.PItem);
 implementation
 
+function CanHeal(character: Types.PCharacter): Boolean; forward;
+
+function CanCure(character: Types.PCharacter): Boolean; forward;
+
+procedure TradeTreasureMenu; forward;
+
+procedure PaladinLayOnHands(character: Types.PCharacter); forward;
+
+procedure PaladinCureDisease(character: Types.PCharacter); forward;
+
+function CheckItemAvail(item: Types.PItem): Boolean; forward;
+
 procedure ItemTradeMenu(item: Types.PItem); forward;
 
 procedure HalveItem(item: Types.PItem); forward;
@@ -133,7 +124,7 @@ procedure SellItem(item: Types.PItem); forward;
 
 procedure IdentifyItem(item: Types.PItem; var redraw: Boolean); forward;
 
-procedure TradeTreasureMenu; forward;
+procedure ToggleItemEffect(item: Types.PItem; equipping: Boolean); forward;
 
 procedure DisplayChar;
 var
@@ -154,10 +145,12 @@ begin
   Border.DrawCharSheetFrame;
   CharHlp.DisplayCreatureName(GDVars.viewedCharacter, 1, 1, False);
   TextRend.DisplayString(20, 1, White, Black, 'Status:');
-  TextRend.DisplayString(27, 1, LightGreen, Black, GDConsts.statusNames[ShortInt(GDVars.viewedCharacter^.status)]);
+  TextRend.DisplayString(27, 1, LightGreen, Black,
+                         GDConsts.statusNames[ShortInt(GDVars.viewedCharacter^.status)]);
   s := GDConsts.genderNames[GDVars.viewedCharacter^.gender];
   TextRend.DisplayString(1, 3, White, Black, s);
-  TextRend.DisplayString(8, 3, White, Black, CharHlp.WordToString(GDVars.viewedCharacter^.age) + ' years');
+  TextRend.DisplayString(8, 3, White, Black,
+                         CharHlp.WordToString(GDVars.viewedCharacter^.age) + ' years');
   s := GDConsts.alignmentNames[GDVars.viewedCharacter^.alignment];
   TextRend.DisplayString(1, 4, White, Black, s);
   s := GDConsts.raceNames[GDVars.viewedCharacter^.race];
@@ -357,7 +350,8 @@ begin
       MenuCore.AppendChoice(0, options);
     if hasSpells then
       MenuCore.AppendChoice(1, options);
-    if ((GDVars.viewedCharacter^.npc < C_Npc.NON_PLAYER) or (GDVars.viewedCharacter^.enabled = 0) or
+    if ((GDVars.viewedCharacter^.npc < C_Npc.NON_PLAYER) or
+        (GDVars.viewedCharacter^.enabled = 0) or
         (GDVars.viewedCharacter^.status = C_Status.ANIMATED)) and hasMoney and
         (GDVars.interfaceState <> C_Ifc.IN_COMBAT) then
       MenuCore.AppendChoice(2, options);
@@ -499,8 +493,9 @@ begin
           #1: if selected^.equipped = 0 then begin
                CharHlp.PrintBottomLine(GDConsts.mustBeReadied);
                ch := #255
-             end else if Magic.ItemReadable(selected) or
-               ((selected^.effect > 0) and (selected^.special < $80)) then begin
+             end else if
+                         Magic.ItemReadable(selected) or
+                           ((selected^.effect > 0) and (selected^.special < $80)) then begin
                ViewChar.UseItem(selected, done);
                if GDVars.interfaceState <> C_Ifc.IN_COMBAT then
                  done := False;
@@ -533,7 +528,7 @@ begin
                    end;
                    GDVars.vaultCursor^ := selected^;
                    GDVars.vaultCursor^.next := nil;
-                   CharHlp.RemoveItem(character, selected);
+                   CharHlp.RemoveItem(character, Types.PItem(selected));
                    menuNeedsRedraw := True
                  end
                end else
@@ -545,7 +540,7 @@ begin
                  TextRend.DisplayMessageWindow(1, 21, 38, 22, Yellow, Black, True,
                                                GDConsts.dropYour + selected^.name + GDConsts.goneForever);
                  if Char(MenuCore.YesNoMenu(GDConsts.loseQuery, GDConsts.noKey)) = Chr(GDConsts.yesKey) then begin
-                   CharHlp.RemoveItem(GDVars.currentCharacter, selected);
+                   CharHlp.RemoveItem(GDVars.currentCharacter, Types.PItem(selected));
                    menuNeedsRedraw := True
                  end;
                  Border.ClearBox(1, 21, 38, 22)
@@ -577,27 +572,26 @@ var
   { Unused in this version; see the other implementations of this routine. }
   perClassLevel: Byte;
   { Unused in this version; see the other implementations of this routine. }
-  damage: Byte;
-  character: Types.PCharacter;
+  maxLevel: Byte;
+  character: Pointer;
   { Unused in this version; see the other implementations of this routine. }
-  classIndex: ShortInt;
+  i: ShortInt;
   { Unused in this version; see the other implementations of this routine. }
   newLevel: Byte;
   { Unused in this version; see the other implementations of this routine. }
-  levelIndex: ShortInt;
+  j: ShortInt;
   { Unused in this version; see the other implementations of this routine. }
-  bonus: Byte;
+  k: Byte;
   { Unused in this version; see the other implementations of this routine. }
-  oldLevel: Byte;
+  level: Byte;
   { Unused in this version; see the other implementations of this routine. }
-  levelText: array[1..5] of Byte;
+  spellCounts: array[1..5] of Byte;
 begin
   character := GDVars.currentCharacter;
   effectId := item^.special and $7F;
   case effectId of
     0, 2: begin
           GDVars.handlerOverrideActive := 1;
-
           FxEngine.CallEffectHandler
             (item^.special, character, item, not equipping)
         end;
@@ -699,8 +693,8 @@ begin
     if ViewChar.CannotCarryItem(target, 0, item) then
       CharHlp.PrintBottomLine('Overloaded')
     else begin
-      CharHlp.AddItemCopy(target, item);
-      CharHlp.RemoveItem(GDVars.currentCharacter, item);
+      CharHlp.AddItemCopy(target, Types.PItem(item));
+      CharHlp.RemoveItem(GDVars.currentCharacter, Types.PItem(item));
       CharHlp.RecalcStats(target)
     end
   end
@@ -739,7 +733,7 @@ var
   destination: Types.PItem;
   quantity: Byte;
 begin
-  destination := item;
+  destination := Types.PItem(item);
   quantity := destination^.quantity;
   current := GDVars.currentCharacter^.items;
   while current <> nil do begin
@@ -752,7 +746,7 @@ begin
         (current^.effect = current^.effect) and (current^.special = current^.special) then begin
       if quantity + current^.quantity <= 255 then begin
         Inc(quantity, current^.quantity);
-        CharHlp.RemoveItem(GDVars.currentCharacter, current)
+        CharHlp.RemoveItem(GDVars.currentCharacter, Types.PItem(current))
       end else begin
         destination^.quantity := 255;
         current^.quantity := current^.quantity - (255 - quantity);
@@ -775,7 +769,8 @@ begin
   index := -1;
   GDVars.usingItem := 0;
   spell := 0;
-  if Magic.ItemReadable(item) then begin
+  if
+     Magic.ItemReadable(item) then begin
     GDVars.scroll := item;
     spell := ViewChar.SpellMenu(2, 1, index, notEmpty)
   end else if (item^.effect > 0) and (item^.special < $80) then begin
@@ -798,7 +793,8 @@ begin
       CharHlp.ClearMessageWindow
     end;
     GDVars.usingItem := 1;
-    if Magic.ItemReadable(item) then begin
+    if
+       Magic.ItemReadable(item) then begin
       if (GDVars.currentCharacter^.classLevels[C_Class.MAGE] > 0) or
           (GDVars.currentCharacter^.classLevels[C_Class.CLERIC] > 0) then
         Magic.CastSpell(spell, GDVars.currentCharacter^.quickFight, 0, doneByte)
@@ -815,7 +811,8 @@ begin
         done := CharHlp.EndActions(GDVars.currentCharacter)
   end;
   if done then begin
-    if Magic.ItemReadable(item) then
+    if
+       Magic.ItemReadable(item) then
       Magic.RemoveSpellFromScroll(GDVars.currentCharacter, item, spell)
     else if item^.charges > 0 then begin
       if item^.quantity > 1 then
@@ -823,7 +820,7 @@ begin
       else begin
         Dec(item^.charges);
         if item^.charges = 0 then
-          CharHlp.RemoveItem(GDVars.currentCharacter, item)
+          CharHlp.RemoveItem(GDVars.currentCharacter, Types.PItem(item))
       end
     end
   end
@@ -849,9 +846,10 @@ begin
                                 item^.name);
   if Char(MenuCore.YesNoMenu(GDConsts.dealQuery, GDConsts.yesKey)) = Chr(GDConsts.yesKey) then begin
     CharHlp.PrintBottomLine(GDConsts.soldText);
-    CharHlp.RemoveItem(GDVars.currentCharacter, item);
+    CharHlp.RemoveItem(GDVars.currentCharacter, Types.PItem(item));
     amount := price;
-    if Money.CheckOverload(GDVars.currentCharacter, amount, takable) then begin
+    if Money.CheckOverload(GDVars.currentCharacter, amount, takable)
+       then begin
       CharHlp.PrintBottomLine(GDConsts.overloadPoolText);
       if takable > amount then
         Inc(GDVars.currentCharacter^.coins[4], amount)
@@ -1081,7 +1079,7 @@ begin
   until exitFlag
 end;
 
-function CannotCarryItem(character: Types.PCharacter; mayStack: Byte; itemPointer: Pointer): Boolean;
+function CannotCarryItem(character: Pointer; mayStack: Byte; itemPointer: Pointer): Boolean;
 var cannot: Boolean;
     weight: Word;
     current: Types.PItem;
@@ -1091,7 +1089,7 @@ begin
   CharHlp.RecalcStats(character);
   cannot := False;
   duplicate := False;
-  current := character^.items;
+  current := Types.PCharacter(character)^.items;
   if (item^.quantity > 0) and (mayStack <> 0) then
     while (not duplicate) and (current <> nil) do begin
     duplicate := (current^.nameIds[1] = item^.nameIds[1]) and (current^.nameIds[2] = item^.nameIds[2]) and
@@ -1101,12 +1099,12 @@ begin
       (current^.effect = item^.effect) and (current^.special = item^.special);
     current := current^.next
   end;
-  if (character^.numberOfItems > 15) and (not duplicate) then
+  if (Types.PCharacter(character)^.numberOfItems > 15) and (not duplicate) then
     cannot := True;
   weight := item^.weight;
   if item^.quantity > 0 then
     weight := weight * item^.quantity;
-  if character^.encumbrance + weight > CharHlp.WeightAllowance(character) + 1500 then
+  if Types.PCharacter(character)^.encumbrance + weight > CharHlp.WeightAllowance(character) + 1500 then
     cannot := True;
   CannotCarryItem := cannot
 end;
@@ -1124,11 +1122,11 @@ begin
     if current <> nil then
       case selector of
         C_Keys.UP: begin
-          if Pointer(current) = Pointer(GDVars.currentCharacter) then begin
+          if current = GDVars.currentCharacter then begin
             while current^.next <> nil do
               current := current^.next
           end else
-            while (current <> nil) and (Pointer(current^.next) <> Pointer(GDVars.currentCharacter)) do
+            while (current <> nil) and (current^.next <> GDVars.currentCharacter) do
               current := current^.next;
           GDVars.currentCharacter := current
         end;
@@ -1175,21 +1173,30 @@ begin
     SpellMenu := 0
 end;
 
+{ Tells whether a character is a paladin who may lay on hands: outside combat, okay, and not under effect 109.
+  @param(character The character.)
+  @returns(True when it may lay on hands.) }
 function CanHeal(character: Types.PCharacter): Boolean;
-var found: Types.PEffect;
+var found: Pointer;
 begin
-  CanHeal := (character^.characterClass = C_Class.PALADIN) and
-    (GDVars.interfaceState <> C_Ifc.IN_COMBAT) and (character^.status = C_Status.OKAY) and
-    (not CharHlp.HasEffect(character, 109, found))
+  CanHeal := (Types.PCharacter(character)^.characterClass = C_Class.PALADIN) and
+    (GDVars.interfaceState <> C_Ifc.IN_COMBAT) and
+    (Types.PCharacter(character)^.status = C_Status.OKAY) and (not CharHlp.HasEffect(character, 109, found))
 end;
 
+{ Tells whether a character is a paladin with cure-disease uses left, outside combat and okay.
+  @param(character The character.)
+  @returns(True when it may cure disease.) }
 function CanCure(character: Types.PCharacter): Boolean;
 begin
-  CanCure := (character^.characterClass = C_Class.PALADIN) and
-    (GDVars.interfaceState <> C_Ifc.IN_COMBAT) and (character^.status = C_Status.OKAY) and
-    (character^.cureAbility > 0)
+  CanCure := (Types.PCharacter(character)^.characterClass = C_Class.PALADIN) and
+    (GDVars.interfaceState <> C_Ifc.IN_COMBAT) and
+    (Types.PCharacter(character)^.status = C_Status.OKAY) and
+    (Types.PCharacter(character)^.cureAbility > 0)
 end;
 
+{ Heals a chosen character 2 x the paladin's level and puts the paladin under effect 109 for a day.
+  @param(character The paladin.) }
 procedure PaladinLayOnHands(character: Types.PCharacter);
 var target: Types.PCharacter;
 begin
@@ -1200,15 +1207,18 @@ begin
     ViewChar.DisplayChar
   else begin
     if
-       FxEngine.RestoreHitPoints(target, Byte(character^.classLevels[C_Class.PALADIN] * 2), True) then
+       FxEngine.RestoreHitPoints(target, Byte(Types.PCharacter(character)^.classLevels[C_Class.PALADIN] * 2),
+                                 True) then
       CharHlp.PrintBottomLine(target^.name + ' feels better')
     else
       CharHlp.PrintBottomLine(target^.name + ' is unaffected');
-    FxEngine.AddEffect(character, 109, 1440, 0, False);
+FxEngine.AddEffect(character, 109, 1440, 0, False);
     ViewChar.DisplayChar
   end
 end;
 
+{ Asks whom to cure and does nothing more: no cure is applied and no use spent.
+  @param(character Unused.) }
 procedure PaladinCureDisease(character: Types.PCharacter);
 var target: Types.PCharacter;
     { Unused in this version; see the other implementations of this routine. }
@@ -1255,11 +1265,10 @@ var score: ShortInt;
     conScore: Byte;
 begin
   score := 0;
-  Inc(score, GDConsts.constitutionHitPointTable[character^.stats[C_Stat.CONSTITUTION].current]);
-  { the fighting classes }
+  Inc(score, GDConsts.constitutionHitPointTable[Types.PCharacter(character)^.stats[C_Stat.CONSTITUTION].current]);
   if (classId = C_Class.FIGHTER) or (classId = C_Class.KNIGHT) or (classId = C_Class.PALADIN) or
       (classId = C_Class.RANGER) then
-    case character^.stats[C_Stat.CONSTITUTION].current of
+    case Types.PCharacter(character)^.stats[C_Stat.CONSTITUTION].current of
       17: Inc(score);
       18: Inc(score, 2);
       19, 20: Inc(score, 3);
@@ -1269,7 +1278,7 @@ begin
   ClassConHpBonus := score
 end;
 
-procedure AdjustLevelHitPoints(character: Types.PCharacter; classMask, divisor: Byte; gaining: Boolean);
+procedure AdjustLevelHitPoints(character: Pointer; classMask, divisor: Byte; gaining: Boolean);
 var
   firstRoll: Byte;
   secondRoll: Byte;
@@ -1283,12 +1292,12 @@ begin
   total := 0;
   secondary := 0;
   for index := 0 to 7 do
-    if (character^.classLevels[index] > 0) and (GDConsts.trainingClassBits[index] and classMask > 0) then begin
-      if Byte(character^.classLevels[index]) < GDConsts.firstFixedHpLevel[index] then begin
-        if character^.classLevels[index] > 1 then
+    if (Types.PCharacter(character)^.classLevels[index] > 0) and
+        (GDConsts.trainingClassBits[index] and classMask > 0) then begin
+      if Byte(Types.PCharacter(character)^.classLevels[index]) < GDConsts.firstFixedHpLevel[index] then begin
+        if Types.PCharacter(character)^.classLevels[index] > 1 then
           level := 1
-        { Sirrion, Reorx, Shinare: one die }
-        else if (index = C_Class.CLERIC) and (character^.deity > 4) then
+        else if (index = C_Class.CLERIC) and (Types.PCharacter(character)^.deity > 4) then
           level := 1
         else
           level := GDConsts.firstLevelHitDice[index];
@@ -1304,43 +1313,41 @@ begin
         C_Class.MAGE: total := 1
       end
     end;
-  with character^ do begin
-    if divisor > 0 then begin
-      total := total div divisor;
-      if total < 1 then total := 1;
-      secondary := secondary div divisor;
-      { reused for the damage taken }
-      firstRoll := maxHitPoints - hitPoints;
-      if gaining then begin
-        Inc(baseMaxHitPoints, total);
-        Inc(maxHitPoints, total + secondary);
-        if firstRoll > maxHitPoints then
-          hitPoints := 0
-        else
-          hitPoints := maxHitPoints - firstRoll
-      end else begin
-        if baseMaxHitPoints > total then
-          Dec(baseMaxHitPoints, total)
-        else
-          baseMaxHitPoints := 0;
-        amount := total + secondary;
-        cap := ViewChar.HitPointCap(character);
-        if maxHitPoints - amount > cap then
-          amount := maxHitPoints - cap;
-        if amount > maxHitPoints then
-          maxHitPoints := 0
-        else
-          Dec(maxHitPoints, amount);
-        if firstRoll > maxHitPoints then
-          hitPoints := 0
-        else
-          hitPoints := maxHitPoints - firstRoll
-      end
+  with Types.PCharacter(character)^ do
+  if divisor > 0 then begin
+    total := total div divisor;
+    if total < 1 then total := 1;
+    secondary := secondary div divisor;
+    firstRoll := maxHitPoints - hitPoints;
+    if gaining then begin
+      Inc(baseMaxHitPoints, total);
+      Inc(maxHitPoints, total + secondary);
+      if firstRoll > maxHitPoints then
+        hitPoints := 0
+      else
+        hitPoints := maxHitPoints - firstRoll
     end else begin
-      hitPoints := 0;
-      baseMaxHitPoints := 0;
-      maxHitPoints := 0
+      if baseMaxHitPoints > total then
+        Dec(baseMaxHitPoints, total)
+      else
+        baseMaxHitPoints := 0;
+      amount := total + secondary;
+      cap := ViewChar.HitPointCap(character);
+      if maxHitPoints - amount > cap then
+        amount := maxHitPoints - cap;
+      if amount > maxHitPoints then
+        maxHitPoints := 0
+      else
+        Dec(maxHitPoints, amount);
+      if firstRoll > maxHitPoints then
+        hitPoints := 0
+      else
+        hitPoints := maxHitPoints - firstRoll
     end
+  end else begin
+    hitPoints := 0;
+    baseMaxHitPoints := 0;
+    maxHitPoints := 0
   end
 end;
 
@@ -1351,7 +1358,7 @@ var count: Byte;
     index: ShortInt;
     excess: Byte;
 begin
-  with character^ do begin
+  with Types.PCharacter(character)^ do begin
     count := 0;
     sum := 0;
     for index := 0 to 7 do
@@ -1391,10 +1398,6 @@ begin
       sum := 0;
     HitPointCap := Lo(sum)
   end
-end;
-
-procedure NoopViewChar;
-begin
 end;
 begin
 end.

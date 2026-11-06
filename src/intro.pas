@@ -1,6 +1,6 @@
 { Intro -- the title sequence FixMain runs at start-up: four TITLE pictures with the opening music, then the credits
   screen; it ends by setting GDVars.gameUp. }
-{$O+,F+,V+}
+{$O+,F+}
 unit Intro;
 interface
 
@@ -8,9 +8,6 @@ interface
   full screen, the last two from row 11), holding each 5, 5, 5 and 20 seconds; a key during any of them skips to the
   credits. The credits always follow, then FinishIntroduction. }
 procedure Introduction;
-
-{ Does nothing; nothing calls it. }
-procedure NoopIntro;
 implementation
 uses GDConsts, GDVars, Crt, TextRend, Blit, Mouse, Border, Music, Portrait, GameIo, Types;
 
@@ -69,12 +66,12 @@ var
   { Unused in this version; see the other implementations of this routine. }
   keyed: Boolean;
 begin
- pic := nil; Portrait.FreeAnimation(GDVars.portraitAnimation); Mouse.HideMouse; TextRend.ClearScreen;
-     Music.StartMusic(1);
+ pic :=
+   nil; Portrait.FreeAnimation(GDVars.portraitAnimation); Mouse.HideMouse; TextRend.ClearScreen; Music.StartMusic(1);
  Blit.LoadPic('title', 1, Boolean(GDConsts.pictureMode), Black, pic); Blit.ShowPic(0, 0, pic); Blit.FreePic(pic);
  if Intro.DelayOrKey(5) then begin Intro.Credits; Intro.FinishIntroduction; Exit end;
  Blit.LoadPic('title', 2, Boolean(GDConsts.pictureMode), Black, pic); TextRend.ClearScreen; Blit.ShowPic(0, 0,
-                                                                                                pic); Blit.FreePic(pic);
+     pic); Blit.FreePic(pic);
  if Intro.DelayOrKey(5) then begin Intro.Credits; Intro.FinishIntroduction; Exit end;
  Blit.LoadPic('title', 3, Boolean(GDConsts.pictureMode), Black, pic); Blit.ShowPic(0, 11, pic); Blit.FreePic(pic);
  if Intro.DelayOrKey(5) then begin Intro.Credits; Intro.FinishIntroduction; Exit end;
@@ -82,7 +79,4 @@ begin
  if Intro.DelayOrKey(20) then begin Intro.Credits; Intro.FinishIntroduction; Exit end;
  Intro.Credits; Intro.FinishIntroduction; Exit
 end;
-
-procedure NoopIntro;
-begin end;
 begin end.

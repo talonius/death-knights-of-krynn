@@ -1,20 +1,17 @@
-{ Types -- the types the units share. First the string lengths several units pass. The combat types: the direction
-  legend and combat tables behind GDConsts.directionLegend and GDConsts.combatTables (TIconDelta and TTerrain are its
-  parts), the arena records (TArenaLoc, TDownedRec, TTargetEntry and the TArena its arena points at), TCombat, each
-  creature's per-fight block behind TCharacter.combat, and TCloudNode, the spell clouds on GDVars.cloudList. Then the
-  character record, TCharacter: every party member and every combat creature. GDVars.partyHead is the first one and next
-  links the rest; CharGen allocates and frees it. With it are TEffect, the active effects TCharacter.effects links, the
-  item and spell records, and the shapes of tables elsewhere: the race limits, ages and race classes, the class
-  progression and the party menu. The item records are TItem, the carried item that the item slot pool, the treasure and
-  vault lists and characters' inventories link through next; TBaseItem, the per-kind record of GDVars.baseItems; and
-  TItemTemplate, the record of GDVars.itemTemplates, which is TItem from itemType on. The spell records are TSpell, one
-  row of GDConsts.spellTable per spell id, and TSpellBlock, the spells TCharacter.spells points at, which SaveLoad
-  allocates for a loaded character and saves whole as the character's .wiz file. A spell id stored in a character or
-  scroll carries bit 7 while the spell is still to be memorized or scribed, so readers mask with $7F before indexing.
-  Last come the script zones, TZone0 through TZone3, and TWallSet, one entry of GDVars.loadedWallSets; then the picture
-  buffer Blit loads, draws and frees (TImgBuf, with its color map); the portrait animation, TAnimRec; and TMonFlags, the
-  monster flags. TAimResult is where an aim landed. After them come the types of the units' shared state: Blit's color
-  table, the mouse cursor mask, Pathing's line walk (TPathReq), MenuCore's menu rows (TMenuRow), the game clock
+{ Types -- the types the units share. First the string lengths several units pass. The combat types: TIconDelta and
+  TTerrain, the parts of GDConsts' direction, terrain and icon tables; the arena records (TArenaLoc, TDownedRec,
+  TTargetEntry and the TArena its arena points at); TCombat, each creature's per-fight block behind TCharacter.combat;
+  and TCloudNode, the spell clouds on GDVars.cloudList. Then the character record, TCharacter: every party member and
+  every combat creature. GDVars.partyHead is the first one and next links the rest; CharGen allocates and frees it. With
+  it are TEffect, the active effects TCharacter.effects links, the item and spell records, and the shapes of tables
+  elsewhere: the race limits, ages and race classes, the class progression and the party menu. The item records are
+  TItem, the carried item that the item slot pool, the treasure and vault lists and characters' inventories link through
+  next; TBaseItem, the per-kind record of GDVars.baseItems; and TItemTemplate, the record of GDVars.itemTemplates, which
+  is TItem from itemType on. The spell records are TSpell, one row of GDConsts.spellTable per spell id, and TSpellBlock,
+  the spells TCharacter.spells points at. Last come the script zones, TZone0 through TZone3; TWallSet, one entry of
+  GDVars.loadedWallSets; the picture buffer Blit loads, draws and frees (TImgBuf, with its color map); the portrait
+  animation, TAnimRec; and TMonFlags, the monster flags. After them come the types of the units' shared state: Blit's
+  color table, the mouse cursor mask, Pathing's line walk (TPathReq), MenuCore's menu rows (TMenuRow), the game clock
   (TClock), the display adapter (TVideoMode), the script's return stack (TEclStack), the party's map position
   (TMapState) and the GEO block View3D draws from (TGeoMap). }
 {$F+,A-}
@@ -28,84 +25,26 @@ type
   TString80 = String[80];
   TIconDelta = record dx: ShortInt; dy: ShortInt end;
   TTerrain = record cost: Byte; clearance: Byte; blocking: Byte; code: Byte end;
-  TDirectionLegend = record
-    names: array[0..7] of String[2];
-    matrix: array[0..2, 0..2] of Byte
-  end;
-  TCombatTables = record
-    directionX: array[0..8] of ShortInt;
-    directionY: array[0..8] of ShortInt;
-    terrain: array[1..69] of TTerrain;
-    { sub-tile offsets by icon size }
-    iconDelta: array[1..4, 0..3] of TIconDelta;
-    anyDirection: Byte
-  end;
-  TArenaLoc = record x: ShortInt; y: ShortInt; aux: Byte; size: Byte end;
-  TDownedRec = record cr: Pointer; x: ShortInt; y: ShortInt; terrain: Byte end;
-  { what Pathing.BuildTargetList leaves in GDVars.targetList, nearest first }
-  TTargetEntry = record
-    { the combat slot, GDVars.creatures[] }
-    characterIndex: Byte;
-    { in half cells: Pathing.WalkLine's count }
-    distance: Byte;
-    { the direction it lies in, 0..7 }
-    direction: Byte
-  end;
-  PCombat = ^TCombat;
-  { one per creature for the fight; TCharacter.combat }
-  TCombat = record
-    { spell id being cast, 0 none }
-    spellCast: Byte;
-    { damage, silence and nausea clear them }
-    canCast: Byte;
-    canUseItem: Byte;
-    { 1d6 plus missile dexterity, highest acts first; 20 re-runs the turn }
-    initiative: ShortInt;
-    { which of the two attack counts is in use, 1 or 2 }
-    attackForm: Byte;
-    { adjacent foes a sweep may take }
-    sweepTargets: Byte;
-    movement: Byte;
-    guarding: Byte;
-    { 1 once it has attacked this round }
-    attacked: Byte;
-    direction: Byte;
-    { the PCharacter it is after }
-    target: Pointer;
-    { overkill when it fell, plus one per round dying; past 9 it dies }
-    dyingTurns: Byte;
-    { attacks received since it last moved or began a turn }
-    attacksTaken: Byte;
-    { a fear effect set it; it flees and cannot guard }
-    panicked: Byte;
-    { turn-undead tries this fight }
-    turnAttempts: Byte;
-    { facing-to-attacker angles of those attacks, summed mod 8 }
-    attackAngles: Byte;
-    { 1 for a monster; its items come from the heap }
-    notPcNpc: Byte;
-    fleeing: Byte;
-    aiStance: Byte
-  end;
-  PCloudNode = ^TCloudNode;
-  { a spell cloud on the arena; GDVars.cloudList links them }
-  TCloudNode = record
-    caster: Pointer;
-    next: PCloudNode;
-    { the terrain each cell had, cells by GDConsts.patchDir }
-    under: array[1..9] of Byte;
-    { 1 where the cloud reached that cell }
-    covered: array[1..9] of Byte;
+  { where a combatant stands; size 0 = off the field }
+  TArenaLoc = record
     x: ShortInt;
     y: ShortInt;
-    { rounds left; -1 clears it at once }
-    countdown: ShortInt;
-    casterLevel: Byte;
-    { the arena code the cloud draws as, 28 or 29 }
-    terrain: Byte
+    aux: Byte;
+    size: Byte;
+  end;
+  { a fallen party member's body }
+  TDownedRec = record cr: Pointer; x: ShortInt; y: ShortInt; terrain: Byte end;
+  { what Pathing.BuildTargetList leaves in targetList }
+  TTargetEntry = record
+    { the combat slot, creatures[] }
+    characterIndex: Byte;
+    { in half cells }
+    distance: Byte;
+    { 0..7 }
+    direction: Byte;
   end;
   PArena = ^TArena;
-  { the combat map GDVars.arena points at }
+  { the combat map arena points at }
   TArena = record
     oxLead: array[0..1] of Byte;
     { the view's origin cell }
@@ -117,35 +56,35 @@ type
     { 1: Pathing.WalkLine ignores terrain blocking }
     distMode: Byte;
     { terrain index per cell }
-    cells: array[0..24, 0..49] of Byte
+    cells: array[0..24, 0..49] of Byte;
   end;
-  TStatPair = record base: Byte; current: Byte end;
-  TStatRange = record minimum: Byte; maximum: Byte end;
-  { GDConsts.raceStatLimits, by race }
-  TRaceStatLimits = record
-    { by gender }
-    strengthMinimum: array[0..1] of Byte;
-    strengthMaximum: array[0..1] of Byte;
-    exceptionalMaximum: array[0..1] of Byte;
-    { int wis dex con cha, by stat index }
-    range: array[1..5] of TStatRange
-  end;
-  { GDConsts.startingAges: base + dice d sides }
-  TAgeRoll = record base: Word; dice: Byte; sides: Byte end;
-  { GDConsts.classProgression, by class: what each level past 1 brings }
-  TClassProgression = record
-    experience: array[2..18] of LongInt;
-    spellSlots: array[2..18, 1..8] of Byte
-  end;
-  { GDConsts.partyMenuItems }
-  TMenuItem = record caption: String[40]; enabled: Byte end;
-  { GDConsts.raceClasses: the class ids a race may take }
-  TRaceClasses = record
-    count: Byte;
-    classId: array[1..14] of ShortInt
+  PCombat = ^TCombat;
+  { one per creature for the fight; TCharacter.combat }
+  TCombat = record
+    spellCast: Byte;
+    canCast: Byte;
+    canUseItem: Byte;
+    initiative: ShortInt;
+    { which attack count is in use; foes a sweep may take }
+    attackForm: Byte;
+    sweepTargets: Byte;
+    movement: Byte;
+    guarding: Byte;
+    attacked: Byte;
+    direction: Byte;
+    { the PCharacter it is after }
+    target: Pointer;
+    dyingTurns: Byte;
+    attacksTaken: Byte;
+    panicked: Byte;
+    turnAttempts: Byte;
+    attackAngles: Byte;
+    { 1 for a monster }
+    notPcNpc: Byte;
+    fleeing: Byte;
+    aiStance: Byte
   end;
   PItem = ^TItem;
-  { a carried item; lists link through next }
   TItem = record
     name: String[40];
     inUse: Byte;
@@ -165,20 +104,168 @@ type
       { a scroll's spell ids; bit 7 set while it is being scribed }
       1: (scrollSpells: array[1..3] of Byte)
   end;
+  { The character record, for every party member and combat creature, with its effect list. The combat block is TCombat,
+    above; the spell block is an untyped pointer. }
+  TStatPair = record base: Byte; current: Byte end;
+  PSpellBlock = ^TSpellBlock;
+  TSpellBlock = record
+    { spell ids, bit 7 set until a rest memorizes it }
+    memorized: array[0..73] of Byte;
+    { 1 once the spell is in the book }
+    known: array[1..114] of Byte;
+    { by TSpell.castClass and level }
+    slots: array[0..3, 1..8] of Byte
+  end;
+  PEffect = ^TEffect;
+  { an active effect; TCharacter.effects links them }
+  TEffect = record
+    effectId: Byte;
+    { minutes left; 0 never runs out }
+    duration: Word;
+    strength: Byte;
+    { 1 runs the handler again when the effect is removed }
+    onRemove: Byte;
+    next: PEffect
+  end;
+  PCharacter = ^TCharacter;
+  TIconColors = array[1..6] of Byte;
+  TCharacter = record
+    name: String[15];
+    { str int wis dex con cha }
+    stats: array[0..5] of TStatPair;
+    exceptionalStrength: Byte;
+    exceptionalStrengthBase: Byte;
+    spellPrep: ShortInt;
+    thac0Base: Byte;
+    race: ShortInt;
+    characterClass: ShortInt;
+    knightOrder: Byte;
+    deity: ShortInt;
+    robeOrder: Byte;
+    cureAbility: Byte;
+    age: Word;
+    maxHitPoints: Byte;
+    iconDimensions: Byte;
+    saves: array[0..4] of Byte;
+    baseMovement: Byte;
+    levelHighest: ShortInt;
+    levelUndead: Byte;
+    thiefSkills: array[1..8] of Byte;
+    effects: PEffect;
+    npc: Byte;
+    { steel, gems, jewelry }
+    coins: array[4..6] of Word;
+    classLevels: array[0..7] of ShortInt;
+    { before a drain }
+    oldLevels: array[0..7] of ShortInt;
+    gender: ShortInt;
+    alignment: ShortInt;
+    attackRate: Byte;
+    attackRate2: Byte;
+    unarmedRolls: array[1..2] of Byte;
+    unarmedDice: array[1..2] of Byte;
+    unarmedModifiers: array[1..2] of ShortInt;
+    baseArmorClass: Byte;
+    strengthBonusEnabled: Byte;
+    identity: Byte;
+    experience: LongInt;
+    oldExperience: LongInt;
+    oldMaxHitPoints: Byte;
+    classMask: Byte;
+    { also a monster's XP per hit point }
+    baseMaxHitPoints: Byte;
+    xpAward: Word;
+    hpRolled: Byte;
+    iconHead: Byte;
+    iconBody: Byte;
+    orderNumber: Byte;
+    iconSize: Byte;
+    iconColors: TIconColors;
+    typeFlags: Byte;
+    immunityFlags: Byte;
+    numberOfItems: Byte;
+    items: PItem;
+    equipped: array[0..12] of PItem;
+    handsEquipped: Byte;
+    saveBonus: ShortInt;
+    encumbrance: Word;
+    next: PCharacter;
+    combat: PCombat;
+    spellResistance: Byte;
+    spells: PSpellBlock;
+    levelUpReady: Byte;
+    status: Byte;
+    enabled: Byte;
+    side: ShortInt;
+    quickFight: Byte;
+    thac0Adjusted: Byte;
+    armorClass: Byte;
+    rearArmorClass: Byte;
+    attacksLeft: array[1..2] of Byte;
+    currentRolls: array[1..2] of Byte;
+    currentDice: array[1..2] of Byte;
+    currentModifiers: array[1..2] of ShortInt;
+    hitPoints: Byte;
+    currentMovement: Byte
+  end;
+  PCloudNode = ^TCloudNode;
+  { a spell cloud on the arena; cloudList links them }
+  TCloudNode = record
+    caster: Pointer;
+    next: PCloudNode;
+    { the terrain each cell had, cells by patchDir }
+    under: array[1..9] of Byte;
+    { 1 where the cloud reached that cell }
+    covered: array[1..9] of Byte;
+    x: ShortInt;
+    y: ShortInt;
+    { rounds left; -1 clears it at once }
+    countdown: ShortInt;
+    casterLevel: Byte;
+    { the arena code the cloud draws as, 28 or 29 }
+    terrain: Byte;
+  end;
+  TStatRange = record minimum: Byte; maximum: Byte end;
+  { raceStatLimits, by race }
+  TRaceStatLimits = record
+    { by gender }
+    strengthMinimum: array[0..1] of Byte;
+    strengthMaximum: array[0..1] of Byte;
+    exceptionalMaximum: array[0..1] of Byte;
+    { int wis dex con cha, by stat index }
+    range: array[1..5] of TStatRange
+  end;
+  { startingAges: base + dice d sides }
+  TAgeRoll = record base: Word; dice: Byte; sides: Byte end;
+  { raceClasses: the class ids a race may take }
+  TRaceClasses = record
+    count: Byte;
+    classId: array[1..14] of ShortInt
+  end;
+  { classProgression, by class: what each level past 1 brings }
+  TClassProgression = record
+    experience: array[2..18] of LongInt;
+    spellSlots: array[2..18, 1..8] of Byte
+  end;
+  { a party menu entry }
+  TMenuItem = record
+    caption: String[40];
+    enabled: Byte
+  end;
   TBaseItem = record
     slot: Byte;
     hands: Byte;
-    { a weapon's damage against a large defender }
+    { a weapon's damage against a large target }
     damageRollsLarge: Byte;
     damageDiceLarge: Byte;
     damageModifierLarge: Byte;
-    { a missile weapon's attacks per round, doubled }
+    { a missile weapon's attacks per round }
     rateOfFire: Byte;
-    { bit 7 set when it counts toward armor class, low bits the points }
+    { bit 7 set when it counts toward armor class }
     armorBonus: Byte;
-    { 0 slashing, 1 piercing, $80 bashing; effect 93 halves 0 and 1 }
+    { 0 slashing, 1 piercing, $80 bashing }
     wpnClass: Byte;
-    { loaded from ITEMS, never read }
+    { loaded from ITEMS }
     wpnClassTail: Byte;
     damageRolls: Byte;
     damageDice: Byte;
@@ -186,17 +273,17 @@ type
     range: Byte;
     classMask: Byte;
     flags: Byte;
-    { loaded from ITEMS, never read }
+    { loaded from ITEMS }
     flagsTail: Byte
   end;
-  { TItem from itemType on: EclVm and CharGen copy one over a new item }
+  { TItem from itemType on }
   TItemTemplate = record
     itemType: Byte;
     nameIds: array[1..3] of Byte;
     plus: ShortInt;
     saveBonus: ShortInt;
     equipped: Byte;
-    unidMask: Byte;
+    unidentifiedMask: Byte;
     cursed: Byte;
     weight: Word;
     quantity: Byte;
@@ -234,144 +321,7 @@ type
     hostile: Byte;
     hostileTail: Byte
   end;
-  PSpellBlock = ^TSpellBlock;
-  TSpellBlock = record
-    { spell ids, bit 7 set until a rest memorizes it }
-    memorized: array[0..73] of Byte;
-    { 1 once the spell is in the book }
-    known: array[1..114] of Byte;
-    { by TSpell.castClass and level }
-    slots: array[0..3, 1..8] of Byte
-  end;
-  PEffect = ^TEffect;
-  { an active effect; TCharacter.effects links them }
-  TEffect = record
-    effectId: Byte;
-    { minutes left; 0 never runs out (GameTime.AdvanceTime) }
-    duration: Word;
-    { what the handler keeps: a strength code, charges, a marker }
-    strength: Byte;
-    { 1 runs the handler again when the effect is removed }
-    onRemove: Byte;
-    next: PEffect
-  end;
-  TIconColors = array[1..6] of Byte;
-  PCharacter = ^TCharacter;
-  TCharacter = record
-    name: String[15];
-    { str int wis dex con cha }
-    stats: array[0..5] of TStatPair;
-    exceptionalStrength: Byte;
-    exceptionalStrengthBase: Byte;
-    { rest ticks left before spells are memorized }
-    spellPrep: ShortInt;
-    thac0Base: Byte;
-    race: ShortInt;
-    characterClass: ShortInt;
-    { 1 Crown, 2 Sword, 3 Rose }
-    knightOrder: Byte;
-    deity: ShortInt;
-    { mage's moon, 1 Solinari 2 Lunitari 3 Nuitari }
-    robeOrder: Byte;
-    { paladin cure-disease uses left }
-    cureAbility: Byte;
-    age: Word;
-    maxHitPoints: Byte;
-    { combat icon size in the low 7 bits }
-    iconDimensions: Byte;
-    { the five saving-throw targets }
-    saves: array[0..4] of Byte;
-    baseMovement: Byte;
-    { hit dice for a monster }
-    levelHighest: ShortInt;
-    { 0 living, else the row of CbtActs' turn-undead table; nonzero marks the undead the mace of disruption kills, the
-      turn limit counts (EclVm) and the clouds spare (FxEngine) }
-    levelUndead: Byte;
-    thiefSkills: array[1..8] of Byte;
-    effects: PEffect;
-    { 0 party member, >=$80 NPC, $B3 animated }
-    npc: Byte;
-    { steel, gems, jewelry }
-    coins: array[4..6] of Word;
-    { cleric druid fighter paladin ranger mage thief knight }
-    classLevels: array[0..7] of ShortInt;
-    { levels before a drain }
-    oldLevels: array[0..7] of ShortInt;
-    gender: ShortInt;
-    alignment: ShortInt;
-    { attacks per round, doubled; the first attack form's }
-    attackRate: Byte;
-    { the second form's (TCombat.attackForm picks) }
-    attackRate2: Byte;
-    unarmedRolls: array[1..2] of Byte;
-    unarmedDice: array[1..2] of Byte;
-    unarmedModifiers: array[1..2] of ShortInt;
-    baseArmorClass: Byte;
-    strengthBonusEnabled: Byte;
-    { CPIC icon id }
-    identity: Byte;
-    experience: LongInt;
-    { before a level drain; Magic restores it }
-    oldExperience: LongInt;
-    { likewise }
-    oldMaxHitPoints: Byte;
-    { ANDed with TBaseItem.classMask }
-    classMask: Byte;
-    { XP per hit point on a monster (PostCbt) }
-    baseMaxHitPoints: Byte;
-    xpAward: Word;
-    hpRolled: Byte;
-    iconHead: Byte;
-    iconBody: Byte;
-    orderNumber: Byte;
-    iconSize: Byte;
-    iconColors: TIconColors;
-    { by the effect handlers and the spells that test each bit: $01 Dispel Evil kills it, Dispelling Evil hits it worse
-      (effects 4, 34); $02 a person: Charm Person, Sleep, Hold Person, Mass Charm (Magic); $04 the dwarf's -4 AC applies
-      to it (47); $08 the ranger's damage bonus (105); $10 a mammal, for Charm Person or Mammal; $20 effect 115 adds 3
-      damage; $40 effect 32 hides it from attackers without effect 24; $80 the dwarf's +1 attack applies to it (26) }
-    typeFlags: Byte;
-    { bit $01: effect 114 deals the attacker's hit points to it; $08 proof against poison and death magic (poison touch,
-      Death Spell, Slay Living), and no 'is Dying' or 'is killed' line when it goes down }
-    immunityFlags: Byte;
-    numberOfItems: Byte;
-    items: PItem;
-    { by TBaseItem.slot; 11 ammunition, 12 launcher }
-    equipped: array[0..12] of PItem;
-    handsEquipped: Byte;
-    saveBonus: ShortInt;
-    encumbrance: Word;
-    next: PCharacter;
-    { TCombat, held for the fight }
-    combat: PCombat;
-    spellResistance: Byte;
-    spells: PSpellBlock;
-    levelUpReady: Byte;
-    status: Byte;
-    { 0 once status leaves 0..1 }
-    enabled: Byte;
-    { 0 party, 1 monsters }
-    side: ShortInt;
-    quickFight: Byte;
-    thac0Adjusted: Byte;
-    armorClass: Byte;
-    rearArmorClass: Byte;
-    { attacks left this round, by TCombat.attackForm }
-    attacksLeft: array[1..2] of Byte;
-    currentRolls: array[1..2] of Byte;
-    currentDice: array[1..2] of Byte;
-    currentModifiers: array[1..2] of ShortInt;
-    hitPoints: Byte;
-    currentMovement: Byte
-  end;
-  { The script zones. Zone 0 is the heap block GDVars.zone0 points at, ECL addresses $4B00..$4EFF (EclMenu.GbvmZone);
-    SaveLoad writes it to a saved game right after the leading disk-number byte, then zone 1, then zone 2. Its arrays
-    are indexed by ECL address because their readers walk them by one, so the low bound is the address of the field's
-    first byte. Zone 1 is the block GDVars.zone1 points at, ECL addresses $7C00..$7FFF, saved whole after zone 0; its
-    readers reach a cell through a typed constant holding the cell's offset, added to $7C00 at the site, so each such
-    cell is a one-element array whose bound is its ECL address. Zones 2 and 3 are the block GDVars.zone2 points at, ECL
-    addresses $7A00..$7BFF, saved whole after zone 1, and the block GDVars.zone3 points at, ECL addresses $8000..$9DFF,
-    where EclMenu loads the running script. }
+  { the four script memory zones, each indexed by the script address it starts at }
   PZone0 = ^TZone0;
   TZone0 = record
     case Byte of
@@ -486,16 +436,16 @@ type
        newGameBytesTail: array[$383..$3FF] of Byte);
     1: (ecl: array[$7C00..$7FFF] of Byte)
   end;
-  { one of GDVars.loadedWallSets: the WALLDEF block View3D.LoadWallSet put in }
-  TWallSet = record
-    { an 8x8 symbol set slot; $FFFF, $FFFF while the slot is empty }
-    blockId: Word;
-    slot: Word
-  end;
   PZone2 = ^TZone2;
   TZone2 = array[$7A00..$7BFF] of Byte;
   PZone3 = ^TZone3;
   TZone3 = array[$8000..$9DFF] of Byte;
+  { one of loadedWallSets: the WALLDEF block View3D.LoadWallSet put in an 8x8 symbol set slot; $FFFF, $FFFF while the
+    slot is empty }
+  TWallSet = record
+    blockId: Word;
+    slot: Word
+  end;
   TColorMap = array[0..7] of Byte;
   PBytes = ^TBytes;
   TBytes = array[0..65000] of Byte;
@@ -522,8 +472,8 @@ type
     currentFrame: Byte;
     frames: array[1..8] of TAnimFrame;
   end;
-  { [0] the monster's sprite is shown, [1] its picture }
   TMonFlags = array[0..1] of Boolean;
+  { a color remap table: by color, the color it becomes }
   TColorTab = array[0..15] of Byte;
   PCursorMask = ^TCursorMask;
   TCursorMask = array[0..63] of Byte;
@@ -547,22 +497,13 @@ type
   PMenuRow = ^TMenuRow;
   TMenuRow = record
     name: String[40];
-    { 1: a title row, drawn in menuLabelColor and skipped by the cursor }
     heading: Byte;
     next: PMenuRow
-  end;
-  { where an aim landed: the creature, if any, and the cell }
-  TAimResult = record
-    target: Pointer;
-    x: Byte;
-    y: Byte;
-    yTail: Byte
   end;
   TClock = array[0..6] of Word;
   { the display adapter the game drives }
   TVideoMode = (Cga, Ega, Tandy);
   PEclStack = ^TEclStack;
-  { EclGosub pushes the return address; RETURN pops it }
   TEclStack = record
     addr: Word;
     next: PEclStack
@@ -598,9 +539,6 @@ type
     { encoded letters; slots past wordLen keep their stored bytes }
     chars: array[1..10] of Byte;
   end;
-  { the heap block tandyFreeBlock copies aside }
-  TFreeBlk = array[0..7] of Byte;
-  PFreeBlk = ^TFreeBlk;
   { the ECL script's five entry points, loaded from the script header; EclMenu fills them by number, EclVm and Explore
     call them by name }
   TEclEntryPoints = record
@@ -610,7 +548,7 @@ type
   end;
   PFontArr = ^TFontArr;
   TFontArr = array[0..255] of array[0..7] of Byte;
-  TEffectHandler = procedure(var character: PCharacter; state: Pointer; removed: Boolean);
+  TEffectHandler = procedure(var character; effect: Pointer; removed: Boolean);
   TEffectHandlers = array[1..120] of TEffectHandler;
   TEffectServices = record
     handlers: TEffectHandlers;
@@ -626,13 +564,13 @@ type
   TSpellHandlers = array[1..114] of TSpellHandler;
   TSpellServices = record
     selectTargets: TSpellSelector;
-    handlers: TSpellHandlers
+    handlers: TSpellHandlers;
   end;
   TSpellTargetList = array[1..72] of PCharacter;
   TSpellTargetState = record
     count: Byte;
     targets: TSpellTargetList;
-    noncombatTarget: Pointer
+    noncombatTarget: Pointer;
   end;
   { one calibrated axis: the low end, five thresholds and the high end; CharGen and GameBoot index the seven words,
     Joystick names them }

@@ -42,12 +42,18 @@ var
   total: Word;
   destOfs: Word;
 begin
- if slot > 39 then begin Blit.RestoreVideoMode; WriteLn(Output,
-                                                        'Start range error in Load24x24Set'); GameIo.ExitGame end;
- pic := nil; Blit.LoadPic(name, fileId, Boolean(GDConsts.pictureMode), Black,
-                          pic); total := nTiles * pic^.imgSize; destOfs := slot * pic^.imgSize;
- if GDVars.tileSheet <> nil then Move(pic^.data, GDVars.tileSheet^.data[destOfs],
-                                        total); Blit.FreePic(pic); GameIo.FlushKeys
+  if slot > 39 then begin
+    Blit.RestoreVideoMode;
+    WriteLn(Output, 'Start range error in Load24x24Set');
+    GameIo.ExitGame
+  end;
+  pic := nil;
+  Blit.LoadPic(name, fileId, Boolean(GDConsts.pictureMode), Black, pic);
+  total := nTiles * pic^.imgSize;
+  destOfs := slot * pic^.imgSize;
+  if GDVars.tileSheet <> nil then Move(pic^.data, GDVars.tileSheet^.data[destOfs], total);
+  Blit.FreePic(pic);
+  GameIo.FlushKeys
 end;
 
 procedure FreeIconAnim(animIdx: Byte);
@@ -55,8 +61,8 @@ var
   { Unused in this version; see the other implementations of this routine. }
   i: Integer;
 begin
- if GDVars.iconAnimations[animIdx, 0] <> nil then Blit.FreePic(GDVars.iconAnimations[animIdx, 0]);
- if GDVars.iconAnimations[animIdx, 1] <> nil then Blit.FreePic(GDVars.iconAnimations[animIdx, 1])
+  if GDVars.iconAnimations[animIdx, 0] <> nil then Blit.FreePic(GDVars.iconAnimations[animIdx, 0]);
+  if GDVars.iconAnimations[animIdx, 1] <> nil then Blit.FreePic(GDVars.iconAnimations[animIdx, 1])
 end;
 
 procedure LoadIconAnim(name: String; fileId, animIdx: Byte);
@@ -65,36 +71,43 @@ var
   { Unused in this version; see the other implementations of this routine. }
   ch: Char;
 begin
- if (Copy(name, 1, 5) = 'CHEAD') or (Copy(name, 1, 5) = 'CBODY') then begin
-  if UpCase(name[Length(name)]) = 'T' then Inc(fileId, 64); name := Copy(name, 1, Length(name) - 1); suffix := '';
-  Blit.LoadPic(name + suffix, fileId, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 0]);
-  Blit.LoadPic(name + suffix, fileId + 128, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 1])
- end else if name = 'ICON' then begin
-  suffix := '';
-  Blit.LoadPic(name + suffix, fileId, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 0]);
-  Blit.LoadPic(name + suffix, fileId + 128, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 1]);
- end else begin
-  if name = 'COMSPR' then suffix := ''
-  else if name = 'CPIC' then suffix := '1'
-  else Str(GDVars.diskNumber, suffix);
-  Blit.LoadPic(name + suffix, fileId, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 0]);
-  if GDVars.displayMode <> Types.Cga then
-   Blit.RemapPic(GDConsts.iconRemapFrom, GDConsts.iconRemapTo, 0, False, GDVars.iconAnimations[animIdx, 0]);
-  Blit.LoadPic(name + suffix, fileId + 128, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 1]);
-  if GDVars.displayMode <>
-      Types.Cga then Blit.RemapPic(GDConsts.iconRemapFrom, GDConsts.iconRemapTo, 0, False,
-                                   GDVars.iconAnimations[animIdx, 1])
- end; GameIo.FlushKeys
+  if (Copy(name, 1, 5) = 'CHEAD') or (Copy(name, 1, 5) = 'CBODY') then begin
+    if UpCase(name[Length(name)]) = 'T' then Inc(fileId, 64);
+    name := Copy(name, 1, Length(name) - 1);
+    suffix := '';
+    Blit.LoadPic(name + suffix, fileId, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 0]);
+    Blit.LoadPic(name + suffix, fileId + 128, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 1])
+  end else if name = 'ICON' then begin
+    suffix := '';
+    Blit.LoadPic(name + suffix, fileId, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 0]);
+    Blit.LoadPic(name + suffix, fileId + 128, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 1]);
+  end else begin
+    if name = 'COMSPR' then suffix := ''
+    else if name = 'CPIC' then suffix := '1'
+    else Str(GDVars.diskNumber, suffix);
+    Blit.LoadPic(name + suffix, fileId, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 0]);
+    if GDVars.displayMode <> Types.Cga then
+      Blit.RemapPic(GDConsts.iconRemapFrom, GDConsts.iconRemapTo, 0, False, GDVars.iconAnimations[animIdx, 0]);
+    Blit.LoadPic(name + suffix, fileId + 128, Boolean(GDConsts.iconFrame), Black, GDVars.iconAnimations[animIdx, 1]);
+    if GDVars.displayMode <> Types.Cga then
+      Blit.RemapPic(GDConsts.iconRemapFrom, GDConsts.iconRemapTo, 0, False, GDVars.iconAnimations[animIdx, 1])
+  end;
+  GameIo.FlushKeys
 end;
 
-procedure DrawIconAnimSprite(col, row: ShortInt; facing, frame, animIdx: Byte); var work: Types.PImgBuf;
+procedure DrawIconAnimSprite(col, row: ShortInt; facing, frame, animIdx: Byte);
+var work: Types.PImgBuf;
 begin
- if GDVars.iconAnimations[animIdx, frame] = nil then Exit;
- with GDVars.iconAnimations[animIdx, frame]^ do begin
-  Blit.AllocPic(height, width, 1, GDConsts.iconFrame, work);
-  if facing > 3 then Blit.MirrorPic(GDVars.iconAnimations[animIdx, frame], work)
-  else begin Move(data, work^.data, imgSize); Move(transp^, work^.transp^, imgSize) end
- end;
- Blit.BlitTileClipped(col * 3, row * 3, 0, GDConsts.iconFrame, work, GDVars.compositeBuffer); Blit.FreePic(work)
+  if GDVars.iconAnimations[animIdx, frame] = nil then Exit;
+  with GDVars.iconAnimations[animIdx, frame]^ do begin
+    Blit.AllocPic(height, width, 1, GDConsts.iconFrame, work);
+    if facing > 3 then Blit.MirrorPic(GDVars.iconAnimations[animIdx, frame], work)
+    else begin
+      Move(data, work^.data, imgSize);
+      Move(transp^, work^.transp^, imgSize)
+    end
+  end;
+  Blit.BlitTileClipped(col * 3, row * 3, 0, GDConsts.iconFrame, work, GDVars.compositeBuffer);
+  Blit.FreePic(work)
 end;
 begin end.

@@ -3,19 +3,11 @@
 {$F+,O+,S-,R-,V-,B-,I-}
 unit CharGen;
 interface
-uses C_Class, C_Effect, C_Ifc, C_Keys, C_Npc, C_Race, C_Spell, C_Stat, C_Status, GDConsts, GDVars, Types, MenuCore,
-  TextRend, CharHlp, ViewChar, SaveLoad, Border, FxEngine, Mouse, Joystick, GameIo, MapTiles, ClassCal, Blit, CbtMap,
-  Crt, GameInit;
 
 { The party menu, for FixMain: Create, Drop, Modify, Train, Knight Change Order, View, Add, Remove, Load Saved Game,
   Save Current Game, Begin Adventuring, Initialize Mouse/Joystick and Exit to DOS, each enabled as the party allows; it
   runs until the adventure begins. }
 procedure MainMenu;
-
-{ Adds saved characters to the party. Asks where to load from, then lists the saved characters and adds each one picked,
-  marking it with '*'. A character already in the party is refused, as are a seventh player character, a ninth member,
-  and a fourth ranger. }
-procedure AddCharacterMenu;
 
 { Unlinks the current character from the party roster and frees it. Its predecessor, or else the roster head, becomes
   the current character. A character that is not in the roster is left untouched.
@@ -25,55 +17,10 @@ procedure RemoveCreature(keepCount, freeIcon: Boolean);
 
 { The icon editor: head, body, colors and size for the current character, previewed as it changes. }
 procedure CustomizeIcon;
-
-{ Training at a hall: levels in the classes the hall trains, when the character has the experience and is conscious; the
-  zone's train mask limits the classes. }
-procedure TrainingMenu;
-
-{ The current character's default icon head (by race, gender and size) and body (by class). }
-procedure SetDefaultIcon;
-
-{ Creates a character: race, gender, class, alignment, deity or order, rolled abilities (rerolled on request), name and
-  icon, and saves it. Note: the racial ability adjustments test the race menu's loop counter, which that loop leaves at
-  human, instead of the race chosen, so no race adjusts the rolls. }
-procedure CreateCharacterMenu;
-
-{ Deletes a chosen character's files and removes it, after asking twice. }
-procedure DropCharacterMenu;
-
-{ Lets the player set a new character's abilities and hit points by hand. }
-procedure ModifyCharacterMenu;
-
-{ Works out the lowest maximum hit points a character may be given: one point per level of each class (a level more for
-  a ranger or knight) plus each class's Constitution bonus, averaged over the classes, at least 1 when the bonus is
-  negative.
-  @param(character The character.)
-  @returns(The minimum.) }
-function HpMinimum(character: Types.PCharacter): Byte;
-
-{ Gives a new character the starting kit for its class group (knight, warriors, thief, cleric, other), readied except
-  item 91; numberOfItems is then set to 3 whatever the kit held.
-  @param(character The new character.) }
-procedure CreateStartingItems(character: Pointer);
-
-{ A knight's petition to rise to the next order (Crown, Sword, Rose) when it meets the order's requirements. }
-procedure KnightPromotionMenu;
-
-{ Lets the player turn the mouse or joystick on or off, or disable both, calibrating the joystick when it is turned on.
-  Each change rewrites the configuration file: line 3 holds the input mode (M, J, or N) and the joystick calibration, or
-  zeros, follow the five header lines. }
-procedure InitMouseJoystick;
-
-{ Calibrates joystick 1 in the text window, like Joystick.CalibrateJoystick: exits at once when Joystick.ProbeJoystick
-  finds no stick; otherwise the center from 20 readings, then the upper-left and lower-right extremes with button 1
-  down, and boundaries a third and two thirds of the way to the center. 20000 polls without a press, or a failed read,
-  abort with "Unable to read joystick"; success enables the joystick. }
-procedure CalibrateJoystickInWindow;
-
-{ Frees character's combat block, spell block, items and effects and the record itself, and sets it to nil.
-  @param(character Character to free; nil on return.) }
-procedure FreeCreature(var character: Types.PCharacter);
 implementation
+uses C_Class, C_Effect, C_Ifc, C_Keys, C_Npc, C_Race, C_Spell, C_Stat, C_Status, GDConsts, GDVars,
+  MenuCore, TextRend, CharHlp, ViewChar, SaveLoad, Border, FxEngine, Mouse, Joystick, GameIo, MapTiles, ClassCal, Blit,
+  CbtMap, Crt, GameInit, Types;
 const
   { Multiclass values, in classNames order. }
   CLASS_CLERIC_MAGE = 11;
@@ -82,15 +29,12 @@ const
   { the Delete key, an extended scan code }
   KEY_DEL = #83;
 type
+  PString = ^String;
   TTrainMaskIndex = $8400..$FFFF;
-  { CreateCharacterMenu's working values, three readings of one variable }
   TCreateWorkspace = record
     case Byte of
-      { unused }
       0: (allowedLead: Byte;
-         { the class's alignment bits, masked and shifted }
          allowed: Byte;
-         { alignments the chosen deity permits, one bit each }
          deityAlignments: Byte;
          optionValues: array[0..5] of Byte;
          optionValuesTail: array[9..52] of Byte);
@@ -101,16 +45,40 @@ type
   end;
 var trainMaskIndex: TTrainMaskIndex absolute GDConsts.trainMaskIndex;
 
-procedure FreeCreature(var character: Types.PCharacter);
+procedure CreateCharacterMenu; forward;
+
+procedure DropCharacterMenu; forward;
+
+procedure ModifyCharacterMenu; forward;
+
+procedure TrainingMenu; forward;
+
+procedure KnightPromotionMenu; forward;
+
+procedure AddCharacterMenu; forward;
+
+procedure InitMouseJoystick; forward;
+
+procedure CalibrateJoystickInWindow; forward;
+
+procedure CreateStartingItems(character: Types.PCharacter); forward;
+
+procedure SetDefaultIcon; forward;
+
+function HpMinimum(character: Types.PCharacter): Byte; forward;
+
+{ Frees character's combat block, spell block, items and effects and the record itself, and sets it to nil.
+  @param(character Character to free; nil on return.) }
+procedure FreeCreature(var character: Pointer);
 var
   oldItem: Types.PItem;
   item: Types.PItem;
   oldEffect: Types.PEffect;
   effect: Types.PEffect;
 begin
-  with character^ do begin
+  with Types.PCharacter(character)^ do begin
     if combat <> nil then FreeMem(combat, SizeOf(Types.TCombat));
-    if spells <> nil then FreeMem(spells, SizeOf(Types.TSpellBlock));
+    if spells <> nil then FreeMem(spells, 220);
     item := items;
     while item <> nil do begin
       oldItem := item;
@@ -168,8 +136,8 @@ begin
       CharHlp.DisplayParty(GDVars.currentCharacter);
       GDConsts.partyMenuItems[1].enabled := 1;
       GDConsts.partyMenuItems[2].enabled := 1;
-      GDConsts.partyMenuItems[3].enabled := Byte((GDVars.zone1^.trainMask[trainMaskIndex + $7C00] > 0) or
-                                  (GDVars.testTrainMode <> 0));
+      GDConsts.partyMenuItems[3].enabled := Byte((GDVars.zone1^.ecl[trainMaskIndex + $7C00] > 0) or
+                                                 (GDVars.testTrainMode <> 0));
       GDConsts.partyMenuItems[4].enabled := GDConsts.partyMenuItems[3].enabled;
       GDConsts.partyMenuItems[5].enabled := 1;
       GDConsts.partyMenuItems[7].enabled := 1;
@@ -204,12 +172,11 @@ begin
     redraw := True;
     MenuCore.EnableChoices(0);
     key := Char(MenuCore.MenuVertical(GDConsts.emptyQuery, GDConsts.selectMenuText, 9, 12, 38, 22, list, 0, 0,
-                                      redrawByte, savedInteger,
-                                      selected));
+                                      redrawByte, savedInteger, selected));
     searchIndex := 0;
     found := False;
     while (searchIndex < 13) and not found do begin
-      found := GDConsts.partyMenuItems[searchIndex].caption = Types.PMenuRow(selected)^.name;
+      found := GDConsts.partyMenuItems[searchIndex].caption = PString(selected)^;
       if not found then
         Inc(searchIndex)
     end;
@@ -255,7 +222,7 @@ begin
                  C_Ifc.OVERLAND: Border.DrawRowDivider
                end;
              MenuCore.ClearBottomLine;
-             GDVars.zone1^.trainMask[trainMaskIndex + $7C00] := 0;
+             GDVars.zone1^.ecl[trainMaskIndex + $7C00] := 0;
              Exit
            end
          end;
@@ -286,12 +253,15 @@ begin
   until GDConsts.gameDone <> 0
 end;
 
+{ Creates a character: race, gender, class, alignment, deity or order, rolled abilities (rerolled on request), name and
+  icon, and saves it. Note: the racial ability adjustments test the race menu's loop counter, which that loop leaves at
+  human, instead of the race chosen, so no race adjusts the rolls. }
 procedure CreateCharacterMenu;
-var newCharacter: Types.PCharacter;
-    savedCharacter: Types.PCharacter;
+var newCharacter: Pointer;
+    savedCharacter: Pointer;
     menu: Pointer;
     menuNode: Types.PMenuRow absolute menu;
-    item: Pointer;
+    item: Types.PMenuRow;
     selected: Integer;
     index: Byte;
     optionCount: Byte;
@@ -300,9 +270,10 @@ var newCharacter: Types.PCharacter;
     { Unused in this version; see the other implementations of this routine. }
     raceChoice: Byte;
     raceIndex: ShortInt;
-    genderIndex: ShortInt;
+    classIndex: Byte;
     scanIndex: ShortInt;
     scanIndex2: ShortInt;
+    genderIndex: ShortInt absolute classIndex;
     choiceCount: Byte;
     { Unused in this version; see the other implementations of this routine. }
     alignmentIndex: Byte;
@@ -321,7 +292,7 @@ var newCharacter: Types.PCharacter;
 begin
   GetMem(newCharacter, SizeOf(Types.TCharacter));
   FillChar(newCharacter^, SizeOf(Types.TCharacter), 0);
-  with newCharacter^ do begin
+  with Types.PCharacter(newCharacter)^ do begin
   for index := 1 to 6 do
     iconColors[index] := GDConsts.iconColorSlots[index] + (GDConsts.iconColorSlots[index] + 8) * 16;
   baseArmorClass := 50;
@@ -333,11 +304,11 @@ begin
   orderNumber := 10;
   end;
   MenuCore.AllocStringList(8, menuNode);
-  Types.PMenuRow(menu)^.heading := 1;
-  Types.PMenuRow(menu)^.name := GDConsts.pickRaceMenu;
+  menuNode^.heading := 1;
+  menuNode^.name := GDConsts.pickRaceMenu;
   for raceIndex := 0 to 6 do begin
     item := MenuCore.MenuRowAt(raceIndex + 1, menuNode);
-    Types.PMenuRow(item)^.name := '  ' + GDConsts.raceNames[raceIndex]
+    item^.name := '  ' + GDConsts.raceNames[raceIndex]
   end;
   item := menu;
   selected := 1;
@@ -346,16 +317,15 @@ begin
   MenuCore.EnableChoices(0);
   repeat
     key := Char(MenuCore.MenuVertical(GDConsts.emptyQuery, GDConsts.selectMenuText, 1, 2, 38, 22, menu, otherByte, 0,
-                                      redrawByte,
-                                      selected, item));
-    if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or
-        ((GDVars.menuExtendedKey = 0) and (key > #0)) then begin
+                                      redrawByte, selected, item));
+    if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or ((GDVars.menuExtendedKey = 0) and
+        (key > #0)) then begin
       MenuCore.FreeMenuRows(menuNode);
       CharGen.FreeCreature(newCharacter);
       Exit
     end
   until key = #0;
-  with newCharacter^ do begin
+  with Types.PCharacter(newCharacter)^ do begin
   race := selected - 1;
   case race of
     C_Race.KENDER: begin
@@ -382,11 +352,11 @@ begin
   end;
   MenuCore.FreeMenuRows(menuNode);
   MenuCore.AllocStringList(3, menuNode);
-  Types.PMenuRow(menu)^.heading := 1;
-  Types.PMenuRow(menu)^.name := GDConsts.pickGenderMenu;
+  menuNode^.heading := 1;
+  menuNode^.name := GDConsts.pickGenderMenu;
   for genderIndex := 0 to 1 do begin
     item := MenuCore.MenuRowAt(genderIndex + 1, menuNode);
-    Types.PMenuRow(item)^.name := '  ' + GDConsts.genderNames[genderIndex]
+    item^.name := '  ' + GDConsts.genderNames[genderIndex]
   end;
   item := menu;
   selected := 1;
@@ -394,24 +364,23 @@ begin
   redraw := True;
   repeat
     key := Char(MenuCore.MenuVertical(GDConsts.emptyQuery, GDConsts.selectMenuText, 1, 2, 38, 22, menu, otherByte, 0,
-                                      redrawByte,
-                                      selected, item));
-    if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or
-        ((GDVars.menuExtendedKey = 0) and (key > #0)) then begin
+                                      redrawByte, selected, item));
+    if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or ((GDVars.menuExtendedKey = 0) and
+        (key > #0)) then begin
       MenuCore.FreeMenuRows(menuNode);
       CharGen.FreeCreature(newCharacter);
       Exit
     end
   until key = #0;
-  newCharacter^.gender := selected - 1;
+  Types.PCharacter(newCharacter)^.gender := selected - 1;
   MenuCore.FreeMenuRows(menuNode);
-  choiceCount := GDConsts.raceClasses[newCharacter^.race].count;
+  choiceCount := GDConsts.raceClasses[Types.PCharacter(newCharacter)^.race].count;
   MenuCore.AllocStringList(choiceCount + 1, menuNode);
-  Types.PMenuRow(menu)^.heading := 1;
-  Types.PMenuRow(menu)^.name := GDConsts.pickClassMenu;
+  menuNode^.heading := 1;
+  menuNode^.name := GDConsts.pickClassMenu;
   for index := 1 to choiceCount do begin
     item := MenuCore.MenuRowAt(index, menuNode);
-    Types.PMenuRow(item)^.name := '  ' + GDConsts.classNames[GDConsts.raceClasses[newCharacter^.race].classId[index]]
+    item^.name := '  ' + GDConsts.classNames[GDConsts.raceClasses[Types.PCharacter(newCharacter)^.race].classId[index]]
   end;
   item := menu;
   selected := 1;
@@ -419,16 +388,15 @@ begin
   redraw := True;
   repeat
     key := Char(MenuCore.MenuVertical(GDConsts.emptyQuery, GDConsts.selectMenuText, 1, 2, 38, 22, menu, otherByte, 0,
-                                      redrawByte,
-                                      selected, item));
-    if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or
-        ((GDVars.menuExtendedKey = 0) and (key > #0)) then begin
+                                      redrawByte, selected, item));
+    if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or ((GDVars.menuExtendedKey = 0) and
+        (key > #0)) then begin
       MenuCore.FreeMenuRows(menuNode);
       CharGen.FreeCreature(newCharacter);
       Exit
     end
   until key = #0;
-  with newCharacter^ do begin
+  with Types.PCharacter(newCharacter)^ do begin
   experience := 0;
   characterClass := GDConsts.raceClasses[race].classId[selected];
   if (characterClass = C_Class.FIGHTER) or (characterClass = C_Class.THIEF) or
@@ -436,7 +404,7 @@ begin
     spells := nil
   else begin
     GetMem(spells, SizeOf(Types.TSpellBlock));
-    FillChar(spells^, SizeOf(Types.TSpellBlock), 0)
+    FillChar(spells^, 220, 0)
   end;
   case characterClass of
     C_Class.CLERIC: begin
@@ -520,7 +488,7 @@ begin
        end
   end;
   if classLevels[C_Class.THIEF] > 0 then
-    ClassCal.RecalcThiefSkills(newCharacter);
+    ClassCal.RecalcThiefSkills(Types.PCharacter(newCharacter));
   classMask := 0;
   thac0Base := 0;
   for scanIndex := 0 to 7 do
@@ -529,23 +497,24 @@ begin
         thac0Base := GDConsts.thac0Table[scanIndex, classLevels[scanIndex]];
       Inc(classMask, GDConsts.classMaskBits[scanIndex])
     end;
-  ClassCal.RecalcSaves(newCharacter);
+  ClassCal.RecalcSaves(Types.PCharacter(newCharacter));
   end;
-  if newCharacter^.classLevels[C_Class.CLERIC] > 0 then begin
+  if Types.PCharacter(newCharacter)^.classLevels[C_Class.CLERIC] > 0 then begin
     MenuCore.FreeMenuRows(menuNode);
-    if (newCharacter^.race = C_Race.MOUNTAIN_DWARF) or (newCharacter^.race = C_Race.HILL_DWARF) then begin
+    if (Types.PCharacter(newCharacter)^.race = C_Race.MOUNTAIN_DWARF) or
+        (Types.PCharacter(newCharacter)^.race = C_Race.HILL_DWARF) then begin
       MenuCore.AllocStringList(2, menuNode);
-      Types.PMenuRow(menu)^.heading := 1;
-      Types.PMenuRow(menu)^.name := GDConsts.pickDeityMenu;
+      menuNode^.heading := 1;
+      menuNode^.name := GDConsts.pickDeityMenu;
       item := MenuCore.MenuRowAt(1, menuNode);
-      Types.PMenuRow(item)^.name := '  ' + GDConsts.deityNames[6]
+      item^.name := '  ' + GDConsts.deityNames[6]
     end else begin
       MenuCore.AllocStringList(8, menuNode);
-      Types.PMenuRow(menu)^.heading := 1;
-      Types.PMenuRow(menu)^.name := GDConsts.pickDeityMenu;
+      menuNode^.heading := 1;
+      menuNode^.name := GDConsts.pickDeityMenu;
       for index := 1 to 7 do begin
         item := MenuCore.MenuRowAt(index, menuNode);
-        Types.PMenuRow(item)^.name := '  ' + GDConsts.deityNames[ShortInt(index)]
+        item^.name := '  ' + GDConsts.deityNames[ShortInt(index)]
       end
     end;
     item := menu;
@@ -554,73 +523,74 @@ begin
     redraw := True;
     repeat
       key := Char(MenuCore.MenuVertical(GDConsts.emptyQuery, GDConsts.selectMenuText, 1, 2, 38, 22, menu, otherByte, 0,
-                                        redrawByte,
-                                        selected, item));
-      if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or
-          ((GDVars.menuExtendedKey = 0) and (key > #0)) then begin
+                                        redrawByte, selected, item));
+      if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or ((GDVars.menuExtendedKey = 0) and
+          (key > #0)) then begin
         MenuCore.FreeMenuRows(menuNode);
         CharGen.FreeCreature(newCharacter);
         Exit
       end
     until key = #0;
-    if (newCharacter^.race = C_Race.MOUNTAIN_DWARF) or (newCharacter^.race = C_Race.HILL_DWARF) then
-      newCharacter^.deity := 6
+    if (Types.PCharacter(newCharacter)^.race = C_Race.MOUNTAIN_DWARF) or
+        (Types.PCharacter(newCharacter)^.race = C_Race.HILL_DWARF) then
+      Types.PCharacter(newCharacter)^.deity := 6
     else
-      newCharacter^.deity := selected;
-    case newCharacter^.deity of
+      Types.PCharacter(newCharacter)^.deity := selected;
+    case Types.PCharacter(newCharacter)^.deity of
       1: begin
           workspace.deityAlignments := $15;
-          newCharacter^.spells^.known[C_Spell.PROTECTION_FROM_EVIL_RADIUS_GIFT] := 1
+          Types.PCharacter(newCharacter)^.spells^.known[C_Spell.PROTECTION_FROM_EVIL_RADIUS_GIFT] := 1
         end;
       2: begin
           workspace.deityAlignments := $15;
-          newCharacter^.spells^.known[C_Spell.SILENCE_RADIUS_GIFT] := 1
+          Types.PCharacter(newCharacter)^.spells^.known[C_Spell.SILENCE_RADIUS_GIFT] := 1
         end;
       3: begin
           workspace.deityAlignments := $15;
-          newCharacter^.spells^.known[C_Spell.DETECT_MAGIC_GIFT] := 1;
-          Inc(newCharacter^.thac0Base)
+          Types.PCharacter(newCharacter)^.spells^.known[C_Spell.DETECT_MAGIC_GIFT] := 1;
+          Inc(Types.PCharacter(newCharacter)^.thac0Base)
         end;
       4: begin
           workspace.deityAlignments := $15;
-          newCharacter^.spells^.known[C_Spell.REMOVE_CURSE_GIFT] := 1;
-          newCharacter^.spells^.known[C_Spell.BLESS_GIFT] := 1;
-          newCharacter^.spells^.known[C_Spell.CHARM_PERSON_GIFT] := 1
+          Types.PCharacter(newCharacter)^.spells^.known[C_Spell.REMOVE_CURSE_GIFT] := 1;
+          Types.PCharacter(newCharacter)^.spells^.known[C_Spell.BLESS_GIFT] := 1;
+          Types.PCharacter(newCharacter)^.spells^.known[C_Spell.CHARM_PERSON_GIFT] := 1
         end;
       5: begin
           workspace.deityAlignments := $2E;
-          newCharacter^.spells^.known[C_Spell.BURNING_HANDS_GIFT] := 1
+          Types.PCharacter(newCharacter)^.spells^.known[C_Spell.BURNING_HANDS_GIFT] := 1
         end;
       6: begin
           workspace.deityAlignments := $2E;
-          if (newCharacter^.race = C_Race.MOUNTAIN_DWARF) or (newCharacter^.race = C_Race.HILL_DWARF) then
-            Inc(newCharacter^.thac0Base)
+          if (Types.PCharacter(newCharacter)^.race = C_Race.MOUNTAIN_DWARF) or
+              (Types.PCharacter(newCharacter)^.race = C_Race.HILL_DWARF) then
+            Inc(Types.PCharacter(newCharacter)^.thac0Base)
         end;
       7: begin
           workspace.deityAlignments := $2E;
-          newCharacter^.spells^.known[C_Spell.CHARM_PERSON_GIFT] := 1
+          Types.PCharacter(newCharacter)^.spells^.known[C_Spell.CHARM_PERSON_GIFT] := 1
         end;
     end
   end else begin
-    newCharacter^.deity := 0;
+    Types.PCharacter(newCharacter)^.deity := 0;
     workspace.deityAlignments := $FF
   end;
   MenuCore.FreeMenuRows(menuNode);
   GetMem(menu, SizeOf(Types.TMenuRow));
-  Types.PMenuRow(menu)^.next := nil;
-  Types.PMenuRow(menu)^.heading := 1;
-  Types.PMenuRow(menu)^.name := GDConsts.pickAlignmentMenu;
+  menuNode^.next := nil;
+  menuNode^.heading := 1;
+  menuNode^.name := GDConsts.pickAlignmentMenu;
   item := menu;
   optionCount := 0;
   for index := 0 to 5 do begin
-    workspace.allowed := (GDConsts.classAlignments[newCharacter^.characterClass] and workspace.deityAlignments) shr
-      index;
+    workspace.allowed := (GDConsts.classAlignments[ShortInt(Types.PCharacter(newCharacter)^.characterClass)] and
+                          workspace.deityAlignments) shr index;
     if (workspace.allowed and $01) <> 0 then begin
-      GetMem(Types.PMenuRow(item)^.next, SizeOf(Types.TMenuRow));
-      item := Types.PMenuRow(item)^.next;
-      Types.PMenuRow(item)^.next := nil;
-      Types.PMenuRow(item)^.heading := 0;
-      Types.PMenuRow(item)^.name := '  ' + GDConsts.alignmentNames[GDConsts.alignmentChoices[index]];
+      GetMem(item^.next, SizeOf(Types.TMenuRow));
+      item := item^.next;
+      item^.next := nil;
+      item^.heading := 0;
+      item^.name := '  ' + GDConsts.alignmentNames[GDConsts.alignmentChoices[index]];
       workspace.optionValues[optionCount] := GDConsts.alignmentChoices[index];
       Inc(optionCount)
     end
@@ -631,44 +601,42 @@ begin
   redraw := True;
   repeat
     key := Char(MenuCore.MenuVertical(GDConsts.emptyQuery, GDConsts.selectMenuText, 1, 2, 38, 22, menu, otherByte, 0,
-                                      redrawByte,
-                                      selected, item));
-    if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or
-        ((GDVars.menuExtendedKey = 0) and (key > #0)) then begin
+                                      redrawByte, selected, item));
+    if ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) or ((GDVars.menuExtendedKey = 0) and
+        (key > #0)) then begin
       MenuCore.FreeMenuRows(menuNode);
       CharGen.FreeCreature(newCharacter);
       Exit
     end
   until key = #0;
-  newCharacter^.alignment := workspace.optionValues[selected - 1];
-  case newCharacter^.alignment of
+  Types.PCharacter(newCharacter)^.alignment := workspace.optionValues[selected - 1];
+  case Types.PCharacter(newCharacter)^.alignment of
     0, 3, 6:
-      if newCharacter^.classLevels[C_Class.MAGE] > 0 then
-        newCharacter^.robeOrder := 1;
+      if Types.PCharacter(newCharacter)^.classLevels[C_Class.MAGE] > 0 then
+        Types.PCharacter(newCharacter)^.robeOrder := 1;
     1, 4, 7:
-      if newCharacter^.classLevels[C_Class.MAGE] > 0 then
-        newCharacter^.robeOrder := 2
+      if Types.PCharacter(newCharacter)^.classLevels[C_Class.MAGE] > 0 then
+        Types.PCharacter(newCharacter)^.robeOrder := 2
   end;
   MenuCore.FreeMenuRows(menuNode);
-  if newCharacter^.characterClass <= C_Class.KNIGHT then begin
-    with GDConsts.startingAges[newCharacter^.race, newCharacter^.characterClass] do
-      newCharacter^.age := base + FxEngine.RollDice(dice, sides)
+  if Types.PCharacter(newCharacter)^.characterClass <= C_Class.KNIGHT then begin
+    with GDConsts.startingAges[Types.PCharacter(newCharacter)^.race,
+      ShortInt(Types.PCharacter(newCharacter)^.characterClass)] do
+      Types.PCharacter(newCharacter)^.age := base + FxEngine.RollDice(dice, sides)
   end else begin
-    with newCharacter^ do
+    with Types.PCharacter(newCharacter)^ do
     case characterClass of
       C_Class.CLERIC_FIGHTER, C_Class.CLERIC_FIGHTER_MAGE, CharGen.CLASS_CLERIC_MAGE,
         C_Class.CLERIC_RANGER:
         age := GDConsts.startingAges[race, C_Class.CLERIC].base +
-          GDConsts.startingAges[race, C_Class.CLERIC].sides *
-          GDConsts.startingAges[race, C_Class.CLERIC].dice;
+          GDConsts.startingAges[race, C_Class.CLERIC].sides * GDConsts.startingAges[race, C_Class.CLERIC].dice;
       CharGen.CLASS_FIGHTER_MAGE, C_Class.FIGHTER_MAGE_THIEF, C_Class.MAGE_THIEF,
         CharGen.CLASS_CLERIC_THIEF:
         age := GDConsts.startingAges[race, C_Class.MAGE].base +
           GDConsts.startingAges[race, C_Class.MAGE].sides * GDConsts.startingAges[race, C_Class.MAGE].dice;
       C_Class.FIGHTER_THIEF:
         age := GDConsts.startingAges[race, C_Class.FIGHTER].base +
-          GDConsts.startingAges[race, C_Class.FIGHTER].sides *
-          GDConsts.startingAges[race, C_Class.FIGHTER].dice
+          GDConsts.startingAges[race, C_Class.FIGHTER].sides * GDConsts.startingAges[race, C_Class.FIGHTER].dice
     end
   end;
   savedCharacter := GDVars.currentCharacter;
@@ -678,9 +646,9 @@ begin
     for scanIndex := 0 to 7 do
       if GDVars.currentCharacter^.classLevels[scanIndex] > 0 then
         GDVars.currentCharacter^.classLevels[scanIndex] := 1;
-    newCharacter^.exceptionalStrength := 0;
+    Types.PCharacter(newCharacter)^.exceptionalStrength := 0;
     for scanIndex2 := 0 to 5 do begin
-      newCharacter^.stats[scanIndex2].current := 0;
+      Types.PCharacter(newCharacter)^.stats[scanIndex2].current := 0;
       for optionCount := 1 to 6 do begin
         roll := FxEngine.RollDice(3, 6) + 1;
         case raceIndex of
@@ -704,10 +672,10 @@ begin
               C_Stat.DEXTERITY: Inc(roll, 2)
             end
         end;
-        if newCharacter^.stats[scanIndex2].current < roll then
-          newCharacter^.stats[scanIndex2].current := roll
+        if Types.PCharacter(newCharacter)^.stats[scanIndex2].current < roll then
+          Types.PCharacter(newCharacter)^.stats[scanIndex2].current := roll
       end;
-      with newCharacter^ do begin
+      with Types.PCharacter(newCharacter)^ do begin
       case scanIndex2 of
         C_Stat.STRENGTH: begin
             if (stats[scanIndex2].current > 0) and (GDConsts.ageThresholds[race, 0] < age) then
@@ -728,8 +696,8 @@ begin
                 ((classLevels[C_Class.FIGHTER] > 0) or (classLevels[C_Class.RANGER] > 0) or
                  (classLevels[C_Class.PALADIN] > 0) or (classLevels[C_Class.KNIGHT] > 0)) then begin
               exceptionalStrength := Random(100) + 1;
-              if GDConsts.raceStatLimits[race].exceptionalMaximum[gender] < exceptionalStrength then
-                exceptionalStrength := GDConsts.raceStatLimits[race].exceptionalMaximum[gender]
+              if GDConsts.raceStatLimits[race].exceptionalMaximum[ShortInt(gender)] < exceptionalStrength then
+                exceptionalStrength := GDConsts.raceStatLimits[race].exceptionalMaximum[ShortInt(gender)]
             end
           end;
         C_Stat.INTELLIGENCE: begin
@@ -798,13 +766,15 @@ begin
               stats[scanIndex2].current := GDConsts.classStatMinimums[characterClass, scanIndex2]
           end
       end;
-      newCharacter^.stats[scanIndex2].base := newCharacter^.stats[scanIndex2].current;
+      Types.PCharacter(newCharacter)^.stats[scanIndex2].base :=
+          Types.PCharacter(newCharacter)^.stats[scanIndex2].current;
       if scanIndex2 = 0 then
-        newCharacter^.exceptionalStrengthBase := newCharacter^.exceptionalStrength;
+        Types.PCharacter(newCharacter)^.exceptionalStrengthBase :=
+          Types.PCharacter(newCharacter)^.exceptionalStrength;
       ViewChar.PrintStat(ShortInt(scanIndex2), False)
       end
     end;
-    with newCharacter^ do begin
+    with Types.PCharacter(newCharacter)^ do begin
     hitPoints := maxHitPoints;
     attackRate := 2;
     unarmedRolls[1] := 1;
@@ -824,7 +794,7 @@ begin
         end;
         case scanIndex of
           C_Class.CLERIC: begin
-              ClassCal.RecalcClericSlots(newCharacter);
+              ClassCal.RecalcClericSlots(Types.PCharacter(newCharacter));
               index := 1;
               optionCount := 255;
               while (index <= 10) and (optionCount <> 0) do begin
@@ -847,18 +817,18 @@ begin
         Inc(abilityCount)
       end;
     coins[4] := 500;
-    newCharacter^.maxHitPoints := 0;
-    newCharacter^.baseMaxHitPoints := 0;
-    newCharacter^.hitPoints := 0;
+    Types.PCharacter(newCharacter)^.maxHitPoints := 0;
+    Types.PCharacter(newCharacter)^.baseMaxHitPoints := 0;
+    Types.PCharacter(newCharacter)^.hitPoints := 0;
     ViewChar.AdjustLevelHitPoints(newCharacter, 255, abilityCount, True);
-    workspace.savedSetting := GDVars.zone1^.trainMask[trainMaskIndex + $7C00];
-    GDVars.zone1^.trainMask[trainMaskIndex + $7C00] := $FF;
+    workspace.savedSetting := GDVars.zone1^.ecl[trainMaskIndex + $7C00];
+    GDVars.zone1^.ecl[trainMaskIndex + $7C00] := $FF;
     GDVars.trainingDone := 0;
     GDVars.autoTraining := 1;
     repeat
       CharGen.TrainingMenu
     until GDVars.trainingDone <> 0;
-    GDVars.zone1^.trainMask[trainMaskIndex + $7C00] := workspace.savedSetting;
+    GDVars.zone1^.ecl[trainMaskIndex + $7C00] := workspace.savedSetting;
     GDVars.autoTraining := 0;
     end;
     workspace.keepFlag := False;
@@ -866,7 +836,8 @@ begin
     for scanIndex := 0 to 7 do
       if GDVars.currentCharacter^.classLevels[scanIndex] > 0 then begin
         if workspace.keepFlag then workspace.line := workspace.line + '/';
-        workspace.line := workspace.line + CharHlp.ByteToString(GDVars.currentCharacter^.classLevels[scanIndex]);
+        workspace.line := workspace.line +
+            CharHlp.ByteToString(GDVars.currentCharacter^.classLevels[scanIndex]);
         workspace.keepFlag := True
       end;
     TextRend.DisplayString(7, 7, White, Black, workspace.line);
@@ -876,13 +847,14 @@ begin
   until Char(MenuCore.YesNoMenu(GDConsts.rerollStatsQuery, GDConsts.noKey)) = Chr(GDConsts.noKey);
   ViewChar.DisplayChar;
   repeat
-    newCharacter^.name := TextRend.ReadString(GDConsts.characterNameQuery, LightMagenta, Black, 15)
-  until newCharacter^.name <> '';
+    Types.PCharacter(newCharacter)^.name := TextRend.ReadString(GDConsts.characterNameQuery, LightMagenta, Black, 15)
+  until Types.PCharacter(newCharacter)^.name <> '';
   CharGen.SetDefaultIcon;
   CharGen.CustomizeIcon;
   for scanIndex2 := 0 to 5 do
-    newCharacter^.stats[scanIndex2].base := newCharacter^.stats[scanIndex2].current;
-  newCharacter^.exceptionalStrengthBase := newCharacter^.exceptionalStrength;
+    Types.PCharacter(newCharacter)^.stats[scanIndex2].base :=
+      Types.PCharacter(newCharacter)^.stats[scanIndex2].current;
+  Types.PCharacter(newCharacter)^.exceptionalStrengthBase := Types.PCharacter(newCharacter)^.exceptionalStrength;
   if Char(MenuCore.YesNoMenu(GDConsts.saveCharacterQuery, GDConsts.yesKey)) = Chr(GDConsts.noKey) then begin
     CharGen.FreeCreature(newCharacter);
     GDVars.currentCharacter := savedCharacter
@@ -894,6 +866,7 @@ begin
   end
 end;
 
+{ Deletes a chosen character's files and removes it, after asking twice. }
 procedure DropCharacterMenu;
 var
   { Unused in this version; see the other implementations of this routine. }
@@ -918,6 +891,7 @@ begin
   end
 end;
 
+{ Lets the player set a new character's abilities and hit points by hand. }
 procedure ModifyCharacterMenu;
 var savedStats: array[0..5] of Byte;
     savedStrength: Byte;
@@ -948,7 +922,8 @@ var savedStats: array[0..5] of Byte;
           if GDVars.currentCharacter^.name[cursorColumn] = ' ' then
             TextRend.DisplayString(cursorColumn, 1, White, Black, '%')
           else
-            TextRend.DisplayString(cursorColumn, 1, White, Black, GDVars.currentCharacter^.name[cursorColumn])
+            TextRend.DisplayString(cursorColumn, 1, White, Black,
+                                   GDVars.currentCharacter^.name[cursorColumn])
         end else
           TextRend.DisplayString(1, 1, LightGreen, Black, GDVars.currentCharacter^.name)
     end
@@ -958,7 +933,8 @@ begin
     if not ((GDVars.currentCharacter^.experience = 210003) or
             (GDVars.currentCharacter^.experience = 105002) or
             (GDVars.currentCharacter^.experience = 70001)) then begin
-      TextRend.PrintAndPause(GDVars.currentCharacter^.name + GDConsts.cantBeModifiedText, Yellow, Black);
+      TextRend.PrintAndPause(GDVars.currentCharacter^.name + GDConsts.cantBeModifiedText, Yellow,
+                             Black);
       Exit
     end;
     GDVars.modifyMouseRow := 255;
@@ -996,7 +972,8 @@ begin
             if cursorColumn > 1 then begin
               for scan := cursorColumn to
                   Length(GDVars.currentCharacter^.name) do
-                GDVars.currentCharacter^.name[scan - 1] := GDVars.currentCharacter^.name[scan];
+                GDVars.currentCharacter^.name[scan - 1] :=
+                  GDVars.currentCharacter^.name[scan];
               Dec(GDVars.currentCharacter^.name[0]);
               if cursorColumn > Length(GDVars.currentCharacter^.name) then
                 cursorColumn := Length(GDVars.currentCharacter^.name)
@@ -1023,14 +1000,16 @@ begin
       DisplayModifyField(0);
       if isExtendedKey then
         case key of
-          CharGen.KEY_DEL: if (field = 6) and (Length(GDVars.currentCharacter^.name) > 1) then begin
+          CharGen.KEY_DEL: if (field = 6) and
+            (Length(GDVars.currentCharacter^.name) > 1) then begin
               if cursorColumn = Length(GDVars.currentCharacter^.name) then begin
                 Dec(GDVars.currentCharacter^.name[0]);
                 cursorColumn := Length(GDVars.currentCharacter^.name)
               end else begin
                 for scan := cursorColumn to
                     Length(GDVars.currentCharacter^.name) - 1 do
-                  GDVars.currentCharacter^.name[scan] := GDVars.currentCharacter^.name[scan + 1];
+                  GDVars.currentCharacter^.name[scan] :=
+                    GDVars.currentCharacter^.name[scan + 1];
                 Dec(GDVars.currentCharacter^.name[0])
               end
             end;
@@ -1212,16 +1191,18 @@ begin
     savedHitPoints := savedHitPoints div scan;
     baseMaxHitPoints := maxHitPoints - savedHitPoints;
     for index := 0 to 5 do
-      GDVars.currentCharacter^.stats[index].base := GDVars.currentCharacter^.stats[index].current;
-    GDVars.currentCharacter^.exceptionalStrengthBase := GDVars.currentCharacter^.exceptionalStrength;
+      GDVars.currentCharacter^.stats[index].base :=
+          GDVars.currentCharacter^.stats[index].current;
+    GDVars.currentCharacter^.exceptionalStrengthBase :=
+        GDVars.currentCharacter^.exceptionalStrength;
     GDVars.modifyActive := 0
     end
   end
 end;
 
-const
-  TOO_MANY_RANGERS = 'too many rangers in party';
-
+{ Adds saved characters to the party. Asks where to load from, then lists the saved characters and adds each one picked,
+  marking it with '*'. A character already in the party is refused, as are a seventh player character, a ninth member,
+  and a fourth ranger. }
 procedure AddCharacterMenu;
 var
   list: Pointer;
@@ -1255,13 +1236,12 @@ begin
   SaveLoad.LoadCharlist(list, files);
   if list = nil then Exit;
   index := 0;
-  selected := Types.PMenuRow(list);
+  selected := listNode;
   redraw := True;
   repeat
     MenuCore.EnableChoices(0);
     choice := Char(MenuCore.MenuVertical(GDConsts.addCharacterQuery, GDConsts.addMenu, 1, 2, 38, 22, list, 1, 0,
-                                         redrawByte, index,
-                                         Pointer(selected)));
+                                         redrawByte, index, Pointer(selected)));
     if (GDVars.menuExtendedKey <> 0) and (choice = C_Keys.ESCAPE) then choice := #1;
     if (choice = #0) and (selected^.name[1] <> '*') then begin
       MenuCore.ClearBottomLine;
@@ -1292,7 +1272,7 @@ begin
           if newCharacter^.npc < C_Npc.NON_PLAYER then Inc(nonNpc)
         end else begin
           if (newCharacter^.classLevels[C_Class.RANGER] > 0) and (rangerCount > 2) then
-            CharHlp.PrintBottomLine(CharGen.TOO_MANY_RANGERS);
+            CharHlp.PrintBottomLine(GDConsts.tooManyRangers);
           FreeMem(newCharacter, SizeOf(Types.TCharacter))
         end
       end
@@ -1306,14 +1286,14 @@ var previous: Types.PCharacter;
 begin
   if GDVars.partyHead <> nil then begin
     previous := GDVars.partyHead;
-    if previous <> GDVars.currentCharacter then begin
-      while (previous^.next <> GDVars.currentCharacter) and (previous^.next <> nil) do
+    if Pointer(previous) <> GDVars.currentCharacter then begin
+      while (Pointer(previous^.next) <> GDVars.currentCharacter) and (previous^.next <> nil) do
         previous := previous^.next;
       if previous^.next <> nil then begin
         if freeIcon then
           MapTiles.FreeIconAnim(GDVars.currentCharacter^.orderNumber);
         previous^.next := GDVars.currentCharacter^.next;
-        CharGen.FreeCreature(GDVars.currentCharacter);
+        CharGen.FreeCreature(Pointer(GDVars.currentCharacter));
         GDVars.currentCharacter := previous;
         if not keepCount then Dec(GDVars.zone1^.partySize[$7F3E])
       end
@@ -1322,7 +1302,7 @@ begin
         MapTiles.FreeIconAnim(GDVars.currentCharacter^.orderNumber);
       GDVars.partyHead := GDVars.currentCharacter^.next;
       previous := GDVars.currentCharacter^.next;
-      CharGen.FreeCreature(GDVars.currentCharacter);
+      CharGen.FreeCreature(Pointer(GDVars.currentCharacter));
       GDVars.currentCharacter := previous;
       if not keepCount then Dec(GDVars.zone1^.partySize[$7F3E])
     end;
@@ -1330,6 +1310,7 @@ begin
   end
 end;
 
+{ The current character's default icon head (by race, gender and size) and body (by class). }
 procedure SetDefaultIcon;
 begin
   with GDVars.currentCharacter^ do begin
@@ -1444,179 +1425,179 @@ begin
   repeat
   SaveLoad.LoadCharIconAnim(False);
   with GDVars.currentCharacter^ do begin
-  SetIconMenu(1);
-  savedColors := iconColors;
-  savedOrder := orderNumber;
-  orderNumber := 12;
-  SaveLoad.LoadCharIconAnim(False);
-  orderNumber := savedOrder;
-  savedHead := iconHead;
-  savedBody := iconBody;
-  savedSize := iconSize;
-  CopyIconPics(orderNumber, 12, True);
-  ShowIconFrames(1, 2);
-  TextRend.DisplayString(8, 6, White, Black, GDConsts.oldText);
-  TextRend.DisplayString(3, 10, White, Black, GDConsts.readyActionHeading);
-  TextRend.DisplayString(8, 12, White, Black, GDConsts.newText);
-  TextRend.DisplayString(3, 16, White, Black, GDConsts.readyActionHeading);
-  iconDone := 0;
-  repeat
-  ShowIconFrames(1, 4);
-  key := Char(MenuCore.MenuHorizontal(GDConsts.emptyQuery, GDConsts.iconMenus[state], 0, 0));
-  if GDVars.menuExtendedKey = 0 then
-    case state of
-      1: begin
-          lastState := 1;
-          case key of
-            #0: SetIconMenu(2);
-            #1: if GDVars.displayMode = Types.Cga then
-                 TextRend.PrintAndPause(GDConsts.sorryNotInCgaText, Yellow, Black)
-               else begin
-                 which := 0;
-                 SetIconMenu(3)
-               end;
-            #2: if GDVars.displayMode = Types.Cga then
-                 TextRend.PrintAndPause(GDConsts.sorryNotInCgaText, Yellow, Black)
-               else begin
-                 which := 1;
-                 SetIconMenu(3)
-               end;
-            #3: SetIconMenu(4);
-            #4: iconDone := 1
-          end
-        end;
-      2: begin
-          lastState := 2;
-          if (key = #2) or ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) then
-            SetIconMenu(1)
-          else begin
-            partKey := Ord(key);
-            SetIconMenu(5)
-          end
-        end;
-      3: begin
-          lastState := 3;
-          if (GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE) then key := #7;
-          state := 5;
-          case key of
-            #0: slot := 6;
-            #1: slot := 1;
-            #2, #3: slot := 4;
-            #4: slot := 5;
-            #5: slot := 2;
-            #6: slot := 3;
-            #7: begin
-                slot := 1;
-                state := 1
-              end
-          end;
-          SetIconMenu(state)
-        end;
-      4: begin
-          if (GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE) then key := #3;
-          case key of
-            #0: begin
-                iconSize := 1;
-                SaveLoad.LoadCharIconAnim(False);
-                SetIconMenu(4)
-              end;
-            #1: begin
-                iconSize := 2;
-                SaveLoad.LoadCharIconAnim(False);
-                SetIconMenu(4)
-              end;
-            #2: begin
-                savedSize := iconSize;
-                SetIconMenu(1)
-              end;
-            #3: begin
-                iconSize := savedSize;
-                SetIconMenu(1)
-              end
-          end;
-          SaveLoad.LoadCharIconAnim(False)
-        end;
-      5: case lastState of
-          2: begin
-              if (GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE) then key := #3;
-              case partKey of
-                0: begin
-                    case key of
-                      #0: if iconHead < GDConsts.maximumIconHead then
-                           Inc(iconHead)
-                         else iconHead := 0;
-                      #1: if iconHead > 0 then
-                           Dec(iconHead)
-                         else iconHead := GDConsts.maximumIconHead;
-                      #2: begin
-                          with GDVars.currentCharacter^ do
-                            savedHead := iconHead;
-                          SetIconMenu(lastState)
-                        end;
-                      #3: begin
-                          iconHead := savedHead;
-                          SetIconMenu(lastState)
-                        end
-                    end;
-                    SaveLoad.LoadCharIconAnim(False)
-                  end;
-                1: begin
-                    case key of
-                      #0: if iconBody < GDConsts.maximumIconBody then
-                           Inc(iconBody)
-                         else iconBody := 0;
-                      #1: if iconBody > 0 then
-                           Dec(iconBody)
-                         else iconBody := GDConsts.maximumIconBody;
-                      #2: begin
-                          with GDVars.currentCharacter^ do
-                            savedBody := iconBody;
-                          SetIconMenu(lastState)
-                        end;
-                      #3: begin
-                          iconBody := savedBody;
-                          SetIconMenu(lastState)
-                        end
-                    end;
-                    SaveLoad.LoadCharIconAnim(False)
-                  end
-              end
-            end;
-          3: begin
-              lowColor := iconColors[slot] and $0F;
-              highColor := (iconColors[slot] and $F0) shr 4;
-              if (GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE) then key := #3;
-              case key of
-                #0: begin
-                    if which <> 0 then highColor := (highColor + 1) mod 16
-                    else lowColor := (lowColor + 1) mod 16;
-                    iconColors[slot] := highColor shl 4 + lowColor
-                  end;
-                #1: begin
-                    if which <> 0 then highColor := (highColor - 1) and $0F
-                    else lowColor := (lowColor - 1) and $0F;
-                    iconColors[slot] := highColor shl 4 + lowColor
-                  end;
-                #2: begin
-                    savedColors := iconColors;
-                    SetIconMenu(lastState)
-                  end;
-                #3: begin
-                    iconColors := savedColors;
-                    SetIconMenu(lastState)
-                  end
-              end
+    SetIconMenu(1);
+    savedColors := iconColors;
+    savedOrder := orderNumber;
+    orderNumber := 12;
+    SaveLoad.LoadCharIconAnim(False);
+    orderNumber := savedOrder;
+    savedHead := iconHead;
+    savedBody := iconBody;
+    savedSize := iconSize;
+    CopyIconPics(orderNumber, 12, True);
+    ShowIconFrames(1, 2);
+    TextRend.DisplayString(8, 6, White, Black, GDConsts.oldText);
+    TextRend.DisplayString(3, 10, White, Black, GDConsts.readyActionHeading);
+    TextRend.DisplayString(8, 12, White, Black, GDConsts.newText);
+    TextRend.DisplayString(3, 16, White, Black, GDConsts.readyActionHeading);
+    iconDone := 0;
+    repeat
+    ShowIconFrames(1, 4);
+    key := Char(MenuCore.MenuHorizontal(GDConsts.emptyQuery, GDConsts.iconMenus[state], 0, 0));
+    if GDVars.menuExtendedKey = 0 then
+      case state of
+        1: begin
+            lastState := 1;
+            case key of
+              #0: SetIconMenu(2);
+              #1: if GDVars.displayMode = Types.Cga then
+                   TextRend.PrintAndPause(GDConsts.sorryNotInCgaText, Yellow, Black)
+                 else begin
+                   which := 0;
+                   SetIconMenu(3)
+                 end;
+              #2: if GDVars.displayMode = Types.Cga then
+                   TextRend.PrintAndPause(GDConsts.sorryNotInCgaText, Yellow, Black)
+                 else begin
+                   which := 1;
+                   SetIconMenu(3)
+                 end;
+              #3: SetIconMenu(4);
+              #4: iconDone := 1
             end
-        end;
-    end;
-    CopyIconPics(orderNumber, 12, True)
-  until iconDone <> 0;
-  iconHead := savedHead;
-  iconBody := savedBody;
-  iconSize := savedSize;
-  iconColors := savedColors;
-  CopyIconPics(orderNumber, 12, True);
-  CopyIconPics(12, orderNumber, False);
+          end;
+        2: begin
+            lastState := 2;
+            if (key = #2) or ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) then
+              SetIconMenu(1)
+            else begin
+              partKey := Ord(key);
+              SetIconMenu(5)
+            end
+          end;
+        3: begin
+            lastState := 3;
+            if (GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE) then key := #7;
+            state := 5;
+            case key of
+              #0: slot := 6;
+              #1: slot := 1;
+              #2, #3: slot := 4;
+              #4: slot := 5;
+              #5: slot := 2;
+              #6: slot := 3;
+              #7: begin
+                  slot := 1;
+                  state := 1
+                end
+            end;
+            SetIconMenu(state)
+          end;
+        4: begin
+            if (GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE) then key := #3;
+            case key of
+              #0: begin
+                  iconSize := 1;
+                  SaveLoad.LoadCharIconAnim(False);
+                  SetIconMenu(4)
+                end;
+              #1: begin
+                  iconSize := 2;
+                  SaveLoad.LoadCharIconAnim(False);
+                  SetIconMenu(4)
+                end;
+              #2: begin
+                  savedSize := iconSize;
+                  SetIconMenu(1)
+                end;
+              #3: begin
+                  iconSize := savedSize;
+                  SetIconMenu(1)
+                end
+            end;
+            SaveLoad.LoadCharIconAnim(False)
+          end;
+        5: case lastState of
+            2: begin
+                if (GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE) then key := #3;
+                case partKey of
+                  0: begin
+                      case key of
+                        #0: if iconHead < GDConsts.maximumIconHead then
+                             Inc(iconHead)
+                           else iconHead := 0;
+                        #1: if iconHead > 0 then
+                             Dec(iconHead)
+                           else iconHead := GDConsts.maximumIconHead;
+                        #2: begin
+                            with GDVars.currentCharacter^ do
+                              savedHead := iconHead;
+                            SetIconMenu(lastState)
+                          end;
+                        #3: begin
+                            iconHead := savedHead;
+                            SetIconMenu(lastState)
+                          end
+                      end;
+                      SaveLoad.LoadCharIconAnim(False)
+                    end;
+                  1: begin
+                      case key of
+                        #0: if iconBody < GDConsts.maximumIconBody then
+                             Inc(iconBody)
+                           else iconBody := 0;
+                        #1: if iconBody > 0 then
+                             Dec(iconBody)
+                           else iconBody := GDConsts.maximumIconBody;
+                        #2: begin
+                            with GDVars.currentCharacter^ do
+                              savedBody := iconBody;
+                            SetIconMenu(lastState)
+                          end;
+                        #3: begin
+                            iconBody := savedBody;
+                            SetIconMenu(lastState)
+                          end
+                      end;
+                      SaveLoad.LoadCharIconAnim(False)
+                    end
+                end
+              end;
+            3: begin
+                lowColor := iconColors[slot] and $0F;
+                highColor := (iconColors[slot] and $F0) shr 4;
+                if (GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE) then key := #3;
+                case key of
+                  #0: begin
+                      if which <> 0 then highColor := (highColor + 1) mod 16
+                      else lowColor := (lowColor + 1) mod 16;
+                      iconColors[slot] := highColor shl 4 + lowColor
+                    end;
+                  #1: begin
+                      if which <> 0 then highColor := (highColor - 1) and $0F
+                      else lowColor := (lowColor - 1) and $0F;
+                      iconColors[slot] := highColor shl 4 + lowColor
+                    end;
+                  #2: begin
+                      savedColors := iconColors;
+                      SetIconMenu(lastState)
+                    end;
+                  #3: begin
+                      iconColors := savedColors;
+                      SetIconMenu(lastState)
+                    end
+                end
+              end
+          end;
+      end;
+      CopyIconPics(orderNumber, 12, True)
+    until iconDone <> 0;
+    iconHead := savedHead;
+    iconBody := savedBody;
+    iconSize := savedSize;
+    iconColors := savedColors;
+    CopyIconPics(orderNumber, 12, True);
+    CopyIconPics(12, orderNumber, False)
   end;
   MenuCore.ClearBottomLine;
   MapTiles.FreeIconAnim(12);
@@ -1624,13 +1605,18 @@ begin
   CbtMap.SetNoncombatPalette
 end;
 
+{ Works out the lowest maximum hit points a character may be given: one point per level of each class (a level more for
+  a ranger or knight) plus each class's Constitution bonus, averaged over the classes, at least 1 when the bonus is
+  negative.
+  @param(character The character.)
+  @returns(The minimum.) }
 function HpMinimum(character: Types.PCharacter): Byte;
 var classCount: Byte;
     adjustment: ShortInt;
     total: Byte;
     classIndex: ShortInt;
 begin
-  with character^ do begin
+  with Types.PCharacter(character)^ do begin
     adjustment := 0;
     classCount := 0;
     total := 0;
@@ -1655,11 +1641,8 @@ begin
   HpMinimum := total
 end;
 
-const
-  PROBE_TEXT = 'TEST';
-  UNAVAILABLE_MESSAGE = 'we only train conscious people';
-  RESTRICTED_MESSAGE = 'We don''t train that class here';
-
+{ Training at a hall: levels in the classes the hall trains, when the character has the experience and is conscious; the
+  zone's train mask limits the classes. }
 procedure TrainingMenu;
 var eligible: Boolean;
     words: LongInt;
@@ -1687,186 +1670,189 @@ var eligible: Boolean;
     chosenClass: ShortInt;
     classLevel: ShortInt;
 begin
-  GDVars.testTrainMode := Byte(Boolean(ParamStr(3) = CharGen.PROBE_TEXT) and (GDVars.autoTraining = 0));
+  GDVars.testTrainMode := 0;
   if (GDVars.autoTraining = 0) and (not ViewChar.PickCharacter) then
     Exit;
-  if (GDVars.currentCharacter^.status <> C_Status.OKAY) and (GDVars.testTrainMode = 0) then begin
-    TextRend.PrintAndPause(CharGen.UNAVAILABLE_MESSAGE, Yellow, Black);
+  if (GDVars.currentCharacter^.status <> C_Status.OKAY) and
+      (GDVars.testTrainMode = 0) then begin
+    TextRend.PrintAndPause(GDConsts.consciousTrainingMessage, Yellow, Black);
     Exit
   end;
   readyClassBits := 0;
   heldClassBits := 0;
   words := 0;
-  savedSetting := GDVars.zone1^.trainMask[trainMaskIndex + $7C00];
+  savedSetting := GDVars.zone1^.ecl[trainMaskIndex + $7C00];
   with GDVars.currentCharacter^ do begin
-  words := 0;
-  for classIndex := 0 to 7 do
-      if classLevels[classIndex] > 0 then begin
-        Inc(heldClassBits, GDConsts.trainingClassBits[classIndex]);
-        eligible := False;
-        abilityLevel := classLevels[classIndex];
-        eligible := GDConsts.racialLevelCaps[race, classIndex] <= Byte(abilityLevel);
-        classLevel := CharHlp.ClassSuborderIndex(GDVars.currentCharacter, classIndex);
-        if not eligible then
-          if (GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] <= experience) or
-              (GDVars.testTrainMode <> 0) then
-            if GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] > 0 then begin
-              if GDVars.testTrainMode <> 0 then
-                if (GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] > 0) and
-                    (GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] > experience) then
-                  experience := GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)];
-              Inc(readyClassBits, GDConsts.trainingClassBits[classIndex]);
-              nextThreshold := GDConsts.classProgression[classLevel].experience[Succ(Succ(abilityLevel))];
-              if (nextThreshold > 0) and (experience >= nextThreshold) and (nextThreshold > words) then
-                words := nextThreshold - 1
-            end
-      end;
-  if GDVars.autoTraining = 0 then begin
-    bestThreshold := 0;
-    nextThreshold := 0;
+    words := 0;
     for classIndex := 0 to 7 do
-      if (GDConsts.trainingClassBits[classIndex] and readyClassBits) <> 0 then
-        if GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] > bestThreshold then begin
-          bestThreshold := GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)];
-          chosenClass := classIndex
+        if classLevels[classIndex] > 0 then begin
+          Inc(heldClassBits, GDConsts.trainingClassBits[classIndex]);
+          eligible := False;
+          abilityLevel := classLevels[classIndex];
+          eligible := GDConsts.racialLevelCaps[race, classIndex] <= Byte(abilityLevel);
+          classLevel := CharHlp.ClassSuborderIndex(GDVars.currentCharacter, classIndex);
+          if not eligible then
+            if (GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] <= experience) or
+                (GDVars.testTrainMode <> 0) then
+              if GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] > 0 then begin
+                if GDVars.testTrainMode <> 0 then
+                  if (GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] > 0) and
+                      (GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] > experience) then
+                    experience := GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)];
+                Inc(readyClassBits, GDConsts.trainingClassBits[classIndex]);
+                nextThreshold := GDConsts.classProgression[classLevel].experience[Succ(Succ(abilityLevel))];
+                if (nextThreshold > 0) and (experience >= nextThreshold) and (nextThreshold > words) then
+                  words := nextThreshold - 1
+              end
         end;
-    if bestThreshold > 0 then begin
-      readyClassBits := GDConsts.trainingClassBits[chosenClass] or readyClassBits;
-      nextThreshold := GDConsts.classProgression[classLevel].experience[Succ(Succ(abilityLevel))];
-      if (nextThreshold > 0) and (experience >= nextThreshold) and (nextThreshold > words) then
-        words := nextThreshold - 1
-    end
-  end;
-  if (words > 0) and (GDVars.autoTraining = 0) then
-    experience := words;
-  if GDVars.testTrainMode = 0 then begin
-    if ((heldClassBits and savedSetting) = 0) and (GDVars.autoTraining = 0) then begin
-      TextRend.PrintAndPause(CharGen.RESTRICTED_MESSAGE, Yellow, Black);
-      Exit
-    end else if (readyClassBits and savedSetting) = 0 then begin
-      GDVars.trainingDone := 1;
-      if GDVars.autoTraining = 0 then
-        TextRend.PrintAndPause(GDConsts.notEnoughExperienceText, Yellow, Black);
-      Exit
-    end
-  end;
-  if GDVars.testTrainMode = 0 then
-    allowedClasses := readyClassBits and savedSetting
-  else
-    allowedClasses := readyClassBits;
-  if GDVars.autoTraining = 0 then begin
-    Border.ClearBox(1, 1, 38, 22);
-    row := 4;
-    CharHlp.DisplayCreatureName(GDVars.currentCharacter, 4, row, False);
-    TextRend.DisplayString(Length(name) + 4, row, LightGreen, Black, GDConsts.willBecomeText);
-    for classIndex := 0 to 7 do
-      if (classLevels[classIndex] > 0) and ((GDConsts.trainingClassBits[classIndex] and allowedClasses) > 0) then begin
-        Inc(row);
-        if row = 5 then
-          TextRend.DisplayString(6, row, LightGreen, Black,
-                                 GDConsts.aLevelText + CharHlp.ByteToString(classLevels[classIndex] + 1) + ' ' +
-                                   GDConsts.classNames[classIndex])
-        else
-          TextRend.DisplayString(6, row, LightGreen, Black,
-                                 GDConsts.andALevelText + CharHlp.ByteToString(classLevels[classIndex] + 1) + ' ' +
-                                   GDConsts.classNames[classIndex])
-      end;
-    if Char(MenuCore.YesNoMenu(GDConsts.wishToTrainQuery, GDConsts.yesKey)) <> Chr(GDConsts.yesKey) then
-      Exit;
-    CharHlp.PrintBottomLine(GDConsts.congratulationsText)
-  end;
-  levelCount := 0;
-  savedClass5 := classLevels[C_Class.MAGE];
-  savedClass4 := classLevels[C_Class.RANGER];
-  classMask := 0;
-  for classIndex := 0 to 7 do
-    if classLevels[classIndex] > 0 then begin
-      Inc(levelCount);
-      if (GDConsts.trainingClassBits[classIndex] and allowedClasses) > 0 then
-        Inc(classLevels[classIndex])
-    end;
-  ClassCal.RecalcClassStats(GDVars.currentCharacter);
-  if GDVars.autoTraining = 0 then
-    if (classLevels[C_Class.MAGE] > savedClass5) or
-        ((classLevels[C_Class.RANGER] > 8) and (classLevels[C_Class.RANGER] > savedClass4)) then begin
-      selection := -1;
-      repeat
-        selectionResult := ViewChar.SpellMenu(4, 4, selection, selectionActive)
-      until (selectionResult > 0) or not selectionActive;
-      if selectionResult > 0 then
-        spells^.known[selectionResult] := 1
-    end;
-  if GDVars.autoTraining <> 0 then begin
-    if robeOrder = 1 then
-      case classLevels[C_Class.MAGE] of
-        3: begin
-            spells^.known[C_Spell.DETECT_INVISIBILITY] := 1;
-            spells^.known[C_Spell.RAY_OF_ENFEEBLEMENT] := 1;
-            spells^.known[C_Spell.STINKING_CLOUD] := 1
+    if GDVars.autoTraining = 0 then begin
+      bestThreshold := 0;
+      nextThreshold := 0;
+      for classIndex := 0 to 7 do
+        if (GDConsts.trainingClassBits[classIndex] and readyClassBits) <> 0 then
+          if GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)] > bestThreshold then begin
+            bestThreshold := GDConsts.classProgression[classLevel].experience[Succ(abilityLevel)];
+            chosenClass := classIndex
           end;
-        5: begin
-            spells^.known[C_Spell.DISPEL_MAGIC_MAGE] := 1;
-            spells^.known[C_Spell.FIREBALL] := 1;
-            spells^.known[C_Spell.LIGHTNING_BOLT] := 1
-          end;
-        7: begin
-            spells^.known[C_Spell.CHARM_MONSTERS] := 1;
-            spells^.known[C_Spell.CONFUSION] := 1;
-            spells^.known[C_Spell.FIRE_SHIELD] := 1;
-            spells^.known[C_Spell.ICE_STORM] := 1
-          end
-      end else
-      case classLevels[C_Class.MAGE] of
-        3: begin
-            spells^.known[C_Spell.INVISIBILITY] := 1;
-            spells^.known[C_Spell.KNOCK] := 1;
-            spells^.known[C_Spell.MIRROR_IMAGE] := 1;
-            spells^.known[C_Spell.STINKING_CLOUD] := 1
-          end;
-        5: begin
-            spells^.known[C_Spell.BLINK_MAGE] := 1;
-            spells^.known[C_Spell.FIREBALL] := 1;
-            spells^.known[C_Spell.HASTE] := 1;
-            spells^.known[C_Spell.INVISIBILITY_RADIUS] := 1
-          end;
-        7: begin
-            spells^.known[C_Spell.DIMENSION_DOOR] := 1;
-            spells^.known[C_Spell.FIRE_SHIELD] := 1;
-            spells^.known[C_Spell.FEAR] := 1;
-            spells^.known[C_Spell.ICE_STORM] := 1
-          end
+      if bestThreshold > 0 then begin
+        readyClassBits := GDConsts.trainingClassBits[chosenClass] or readyClassBits;
+        nextThreshold := GDConsts.classProgression[classLevel].experience[Succ(Succ(abilityLevel))];
+        if (nextThreshold > 0) and (experience >= nextThreshold) and (nextThreshold > words) then
+          words := nextThreshold - 1
       end
-  end;
+    end;
+    if (words > 0) and (GDVars.autoTraining = 0) then
+      experience := words;
+    if GDVars.testTrainMode = 0 then begin
+      if ((heldClassBits and savedSetting) = 0) and (GDVars.autoTraining = 0) then begin
+        TextRend.PrintAndPause(GDConsts.classTrainingMessage, Yellow, Black);
+        Exit
+      end else if (readyClassBits and savedSetting) = 0 then begin
+        GDVars.trainingDone := 1;
+        if GDVars.autoTraining = 0 then
+          TextRend.PrintAndPause(GDConsts.notEnoughExperienceText, Yellow, Black);
+        Exit
+      end
+    end;
+    if GDVars.testTrainMode = 0 then
+      allowedClasses := readyClassBits and savedSetting
+    else
+      allowedClasses := readyClassBits;
+    if GDVars.autoTraining = 0 then begin
+      Border.ClearBox(1, 1, 38, 22);
+      row := 4;
+      CharHlp.DisplayCreatureName(GDVars.currentCharacter, 4, row, False);
+      TextRend.DisplayString(Length(name) + 4, row, LightGreen, Black, GDConsts.willBecomeText);
+      for classIndex := 0 to 7 do
+        if (classLevels[classIndex] > 0) and
+            ((GDConsts.trainingClassBits[classIndex] and allowedClasses) > 0) then begin
+          Inc(row);
+          if row = 5 then
+            TextRend.DisplayString(6, row, LightGreen, Black,
+                                   GDConsts.aLevelText + CharHlp.ByteToString(classLevels[classIndex] + 1) + ' ' +
+                                     GDConsts.classNames[classIndex])
+          else
+            TextRend.DisplayString(6, row, LightGreen, Black,
+                                   GDConsts.andALevelText + CharHlp.ByteToString(classLevels[classIndex] + 1) + ' ' +
+                                     GDConsts.classNames[classIndex])
+        end;
+      if Char(MenuCore.YesNoMenu(GDConsts.wishToTrainQuery, GDConsts.yesKey)) <> Chr(GDConsts.yesKey) then
+        Exit;
+      CharHlp.PrintBottomLine(GDConsts.congratulationsText)
+    end;
+    levelCount := 0;
+    savedClass5 := classLevels[C_Class.MAGE];
+    savedClass4 := classLevels[C_Class.RANGER];
+    classMask := 0;
+    for classIndex := 0 to 7 do
+      if classLevels[classIndex] > 0 then begin
+        Inc(levelCount);
+        if (GDConsts.trainingClassBits[classIndex] and allowedClasses) > 0 then
+          Inc(classLevels[classIndex])
+      end;
+    ClassCal.RecalcClassStats(GDVars.currentCharacter);
+    if GDVars.autoTraining = 0 then
+      if (classLevels[C_Class.MAGE] > savedClass5) or
+          ((classLevels[C_Class.RANGER] > 8) and (classLevels[C_Class.RANGER] > savedClass4)) then begin
+        selection := -1;
+        repeat
+          selectionResult := ViewChar.SpellMenu(4, 4, selection, selectionActive)
+        until (selectionResult > 0) or not selectionActive;
+        if selectionResult > 0 then
+          spells^.known[selectionResult] := 1
+      end;
+    if GDVars.autoTraining <> 0 then begin
+      if robeOrder = 1 then
+        case classLevels[C_Class.MAGE] of
+          3: begin
+              spells^.known[C_Spell.DETECT_INVISIBILITY] := 1;
+              spells^.known[C_Spell.RAY_OF_ENFEEBLEMENT] := 1;
+              spells^.known[C_Spell.STINKING_CLOUD] := 1
+            end;
+          5: begin
+              spells^.known[C_Spell.DISPEL_MAGIC_MAGE] := 1;
+              spells^.known[C_Spell.FIREBALL] := 1;
+              spells^.known[C_Spell.LIGHTNING_BOLT] := 1
+            end;
+          7: begin
+              spells^.known[C_Spell.CHARM_MONSTERS] := 1;
+              spells^.known[C_Spell.CONFUSION] := 1;
+              spells^.known[C_Spell.FIRE_SHIELD] := 1;
+              spells^.known[C_Spell.ICE_STORM] := 1
+            end
+        end else
+        case classLevels[C_Class.MAGE] of
+          3: begin
+              spells^.known[C_Spell.INVISIBILITY] := 1;
+              spells^.known[C_Spell.KNOCK] := 1;
+              spells^.known[C_Spell.MIRROR_IMAGE] := 1;
+              spells^.known[C_Spell.STINKING_CLOUD] := 1
+            end;
+          5: begin
+              spells^.known[C_Spell.BLINK_MAGE] := 1;
+              spells^.known[C_Spell.FIREBALL] := 1;
+              spells^.known[C_Spell.HASTE] := 1;
+              spells^.known[C_Spell.INVISIBILITY_RADIUS] := 1
+            end;
+          7: begin
+              spells^.known[C_Spell.DIMENSION_DOOR] := 1;
+              spells^.known[C_Spell.FIRE_SHIELD] := 1;
+              spells^.known[C_Spell.FEAR] := 1;
+              spells^.known[C_Spell.ICE_STORM] := 1
+            end
+        end
+    end
   end;
   ViewChar.AdjustLevelHitPoints(GDVars.currentCharacter, allowedClasses, levelCount, True);
   GDVars.currentCharacter^.levelUpReady := Ord(CharHlp.CanLevelUp(GDVars.currentCharacter))
 end;
 
-procedure CreateStartingItems(character: Pointer);
+{ Gives a new character the starting kit for its class group (knight, warriors, thief, cleric, other), readied except
+  item 91; numberOfItems is then set to 3 whatever the kit held.
+  @param(character The new character.) }
+procedure CreateStartingItems(character: Types.PCharacter);
 var
   oldItem: Types.PItem;
   newItem: Types.PItem;
   itemClass: Byte;
   itemKind: Byte;
   itemIndex: Byte;
-  typedCharacter: Types.PCharacter absolute character;
 begin
-  if typedCharacter^.classLevels[C_Class.KNIGHT] > 0 then
+  if character^.classLevels[C_Class.KNIGHT] > 0 then
     itemClass := 1
-  else if (typedCharacter^.classLevels[C_Class.FIGHTER] > 0) or
-    (typedCharacter^.classLevels[C_Class.RANGER] > 0) or
-    (typedCharacter^.classLevels[C_Class.PALADIN] > 0) then
+  else if (character^.classLevels[C_Class.FIGHTER] > 0) or (character^.classLevels[C_Class.RANGER] > 0) or
+    (character^.classLevels[C_Class.PALADIN] > 0) then
     itemClass := 2
-  else if typedCharacter^.classLevels[C_Class.THIEF] > 0 then
+  else if character^.classLevels[C_Class.THIEF] > 0 then
     itemClass := 3
-  else if typedCharacter^.classLevels[C_Class.CLERIC] > 0 then
+  else if character^.classLevels[C_Class.CLERIC] > 0 then
     itemClass := 4
   else
     itemClass := 5;
   for itemIndex := 1 to 4 do begin
     newItem := GameIo.AllocSlot;
     FillChar(newItem^, SizeOf(Types.TItem), 0);
-    if (itemClass = 3) and (itemIndex = 1) and (typedCharacter^.classLevels[C_Class.CLERIC] > 0) then
+    if (itemClass = 3) and (itemIndex = 1) and (character^.classLevels[C_Class.CLERIC] > 0) then
       itemKind := GDConsts.startingItems[4, 1]
     else
       itemKind := GDConsts.startingItems[itemClass, itemIndex];
@@ -1874,67 +1860,59 @@ begin
       Move(GDVars.itemTemplates[itemKind], newItem^.itemType, SizeOf(Types.TItemTemplate));
       newItem^.next := nil;
       newItem^.inUse := 0;
-      if typedCharacter^.items = nil then
-        typedCharacter^.items := newItem
+      if character^.items = nil then
+        character^.items := newItem
       else begin
-        oldItem := typedCharacter^.items;
-        typedCharacter^.items := newItem;
-        typedCharacter^.items^.next := oldItem
+        oldItem := character^.items;
+        character^.items := newItem;
+        character^.items^.next := oldItem
       end;
-      typedCharacter^.items^.unidentifiedMask := typedCharacter^.items^.unidentifiedMask and $F8;
+      character^.items^.unidentifiedMask := character^.items^.unidentifiedMask and $F8;
       if itemKind <> 91 then
-        typedCharacter^.items^.equipped := 1
+        character^.items^.equipped := 1
     end
   end;
   CharHlp.RecalcStats(character);
-  typedCharacter^.numberOfItems := 3
+  character^.numberOfItems := 3
 end;
-
-{ A private routine nothing calls. }
-procedure NoopCharGen; forward;
 
 { Takes a knight back a level when its experience no longer reaches it for its order, with the hit points that level
   gave.
   @param(character The knight.) }
-procedure AdvanceKnightOrder(character: Pointer);
+procedure AdvanceKnightOrder(character: Types.PCharacter);
 var
   oldLevel: ShortInt;
   thresholdClass: ShortInt;
   hitPointLoss: Byte;
   adjustment: ShortInt;
-  typedCharacter: Types.PCharacter absolute character;
 begin
-  oldLevel := typedCharacter^.classLevels[C_Class.KNIGHT];
-  if typedCharacter^.knightOrder = 1 then
+  oldLevel := character^.classLevels[C_Class.KNIGHT];
+  if character^.knightOrder = 1 then
     thresholdClass := 4
   else
     thresholdClass := 5;
-  if GDConsts.classProgression[thresholdClass].experience[oldLevel] > typedCharacter^.experience then begin
-    Dec(typedCharacter^.classLevels[C_Class.KNIGHT]);
+  if GDConsts.classProgression[thresholdClass].experience[oldLevel] > character^.experience then begin
+    Dec(character^.classLevels[C_Class.KNIGHT]);
     if oldLevel > 9 then begin
       hitPointLoss := 2;
       adjustment := 0
     end else begin
-      hitPointLoss := typedCharacter^.baseMaxHitPoints div (oldLevel + 1);
+      hitPointLoss := character^.baseMaxHitPoints div (oldLevel + 1);
       adjustment := CharHlp.ClassConAdj(GDVars.currentCharacter, C_Class.KNIGHT)
     end;
-    Dec(typedCharacter^.baseMaxHitPoints, hitPointLoss);
-    Dec(typedCharacter^.maxHitPoints, hitPointLoss + adjustment);
-    if typedCharacter^.hitPoints >= typedCharacter^.maxHitPoints then
-      typedCharacter^.hitPoints := typedCharacter^.maxHitPoints
+    Dec(character^.baseMaxHitPoints, hitPointLoss);
+    Dec(character^.maxHitPoints, hitPointLoss + adjustment);
+    if character^.hitPoints >= character^.maxHitPoints then
+      character^.hitPoints := character^.maxHitPoints
   end;
-  Inc(typedCharacter^.knightOrder);
+  Inc(character^.knightOrder);
   ClassCal.RecalcClassStats(Types.PCharacter(character));
-  typedCharacter^.levelUpReady := Ord(CharHlp.CanLevelUp(character))
+  character^.levelUpReady := Ord(CharHlp.CanLevelUp(character))
 end;
 
-const
-  EXIT_TEXT = 'Exit';
-
+{ A knight's petition to rise to the next order (Crown, Sword, Rose) when it meets the order's requirements. }
 procedure KnightPromotionMenu;
 var orderName: String[5];
-    { Unused in this version; see the other implementations of this routine. }
-    inputText: String[11];
     scanIndex: ShortInt;
     requirementsMet: Byte;
     choice: Byte;
@@ -1952,7 +1930,6 @@ begin
       ((character^.classLevels[C_Class.KNIGHT] > 0) and (character^.knightOrder = 3)) then
     Exit;
   done := 0;
-  inputText := CharGen.EXIT_TEXT;
   with character^ do begin
     column := 19 - (Length(name) div 2);
     TextRend.DisplayString(column, 3, LightGreen, Black, name);
@@ -2021,35 +1998,32 @@ end;
 
 const
   CONFIG_NAME = 'krynn.cfg';
-  MOUSE_ON = 'mouse ON';
-  MOUSE_OFF = 'mouse OFF';
-  JOYSTICK_ON = 'joystick ON';
-  JOYSTICK_OFF = 'joystick OFF';
-  DISABLE_BOTH = 'disable both';
   CONFIG_M = 'M';
   CONFIG_N = 'N';
   CONFIG_J = 'J';
 
+{ Lets the player turn the mouse or joystick on or off, or disable both, calibrating the joystick when it is turned on.
+  Each change rewrites the configuration file: line 3 holds the input mode (M, J, or N) and the joystick calibration, or
+  zeros, follow the five header lines. }
 procedure InitMouseJoystick;
-var
-  config: Pointer;
-  walk: Pointer;
-  configNode: Types.PMenuRow absolute config;
-  choice: Byte;
-  result: Char;
-  done: Boolean;
-  doneByte: Byte absolute done;
-  selected: Word;
-  selectedInteger: Integer absolute selected;
-  x: Integer;
-  y: Integer;
-  z: Integer;
-  configCopy: Pointer;
-  configInput: Text;
-  configOutput: Text;
-  lineIndex: Byte;
-  configLines: array[1..5] of String;
-  partyMenuItems: array[1..3] of String[40];
+var config: Pointer;
+    walk: Types.PMenuRow;
+    configNode: Types.PMenuRow absolute config;
+    choice: Byte;
+    result: Char;
+    done: Boolean;
+    doneByte: Byte absolute done;
+    selected: Word;
+    selectedInteger: Integer absolute selected;
+    x: Integer;
+    y: Integer;
+    z: Integer;
+    configCopy: Pointer;
+    configInput: Text;
+    configOutput: Text;
+    lineIndex: Byte;
+    configLines: array[1..5] of String;
+    partyMenuItems: array[1..3] of String[40];
 begin
   MenuCore.AllocStringList(3, configNode);
   done := True;
@@ -2063,25 +2037,24 @@ begin
       ReadLn(configInput, configLines[lineIndex]);
     Close(configInput);
     if GDVars.mousePresent <> 0 then
-      partyMenuItems[1] := CharGen.MOUSE_ON
+      partyMenuItems[1] := GDConsts.mouseOn
     else
-      partyMenuItems[1] := CharGen.MOUSE_OFF;
+      partyMenuItems[1] := GDConsts.mouseOff;
     if GDVars.joystickActive <> 0 then
-      partyMenuItems[2] := CharGen.JOYSTICK_ON
+      partyMenuItems[2] := GDConsts.joystickOn
     else
-      partyMenuItems[2] := CharGen.JOYSTICK_OFF;
-    partyMenuItems[3] := CharGen.DISABLE_BOTH;
+      partyMenuItems[2] := GDConsts.joystickOff;
+    partyMenuItems[3] := GDConsts.disableBoth;
     walk := config;
     for lineIndex := 1 to 3 do begin
-      Types.PMenuRow(walk)^.name := partyMenuItems[lineIndex];
-      Types.PMenuRow(walk)^.heading := 0;
-      walk := Types.PMenuRow(walk)^.next
+      walk^.name := partyMenuItems[lineIndex];
+      walk^.heading := 0;
+      walk := walk^.next
     end;
     done := True;
     MenuCore.EnableChoices(0);
     result := Char(MenuCore.MenuVertical(GDConsts.initInputQuery, GDConsts.selectMenuText, 9, 12, 38, 22, config, 1, 0,
-                                         doneByte,
-                                         selectedInteger, configCopy));
+                                         doneByte, selectedInteger, configCopy));
     if result = #0 then
       case selected of
         0: begin
@@ -2178,12 +2151,12 @@ begin
 end;
 
 const
-  UPPER_PROMPT1 = 'Push JOYSTICK #1 to the extreme upper';
-  UPPER_PROMPT2 = 'left position and press button #1.';
   READ_ERROR = 'Unable to read joystick';
-  LOWER_PROMPT1 = 'Push JOYSTICK #1 to the extreme lower';
-  LOWER_PROMPT2 = 'right position and press button #1.';
 
+{ Calibrates joystick 1 in the text window, like Joystick.CalibrateJoystick: exits at once when Joystick.ProbeJoystick
+  finds no stick; otherwise the center from 20 readings, then the upper-left and lower-right extremes with button 1
+  down, and boundaries a third and two thirds of the way to the center. 20000 polls without a press, or a failed read,
+  abort with "Unable to read joystick"; success enables the joystick. }
 procedure CalibrateJoystickInWindow;
 var
   sumX: Word;
@@ -2210,8 +2183,8 @@ begin
   GDVars.joyCalib[1].y.words[3] := sumY div 20;
   repeat
     Border.ClearBox(1, 1, 38, 22);
-    TextRend.DisplayString(1, 3, LightMagenta, Black, CharGen.UPPER_PROMPT1);
-    TextRend.DisplayString(1, 5, LightMagenta, Black, CharGen.UPPER_PROMPT2);
+    TextRend.DisplayString(1, 3, LightMagenta, Black, GDConsts.upperPrompt1);
+    TextRend.DisplayString(1, 5, LightMagenta, Black, GDConsts.upperPrompt2);
     sample := 0;
     repeat
       ok := Ord(Joystick.ReadJoystick(1, x, y, buttons));
@@ -2219,7 +2192,7 @@ begin
     until (sample > 20000) or ((ok <> 0) and ((buttons and GDConsts.joystickButtonMasks[1, 1]) <> 0));
     if sample > 20000 then begin
       Border.ClearBox(1, 1, 38, 22);
-      TextRend.DisplayString(1, 3, LightMagenta, Black, CharGen.READ_ERROR);
+      TextRend.DisplayString(1, 3, LightMagenta, Black, GDConsts.joystickReadError);
       Delay(2000);
       Exit
     end;
@@ -2252,8 +2225,8 @@ begin
   until not Joystick.JoyButton(1, 1);
   repeat
     Border.ClearBox(1, 1, 38, 22);
-    TextRend.DisplayString(1, 3, LightMagenta, Black, CharGen.LOWER_PROMPT1);
-    TextRend.DisplayString(1, 5, LightMagenta, Black, CharGen.LOWER_PROMPT2);
+    TextRend.DisplayString(1, 3, LightMagenta, Black, GDConsts.lowerPrompt1);
+    TextRend.DisplayString(1, 5, LightMagenta, Black, GDConsts.lowerPrompt2);
     sample := 0;
     repeat
       ok := Ord(Joystick.ReadJoystick(1, x, y, buttons));
@@ -2261,7 +2234,7 @@ begin
     until (sample > 20000) or ((ok <> 0) and ((buttons and GDConsts.joystickButtonMasks[1, 1]) <> 0));
     if sample > 20000 then begin
       Border.ClearBox(1, 1, 38, 22);
-      TextRend.DisplayString(1, 3, LightMagenta, Black, CharGen.READ_ERROR);
+      TextRend.DisplayString(1, 3, LightMagenta, Black, GDConsts.joystickReadError);
       Delay(2000);
       Exit
     end;
@@ -2275,7 +2248,7 @@ begin
         end
       end else begin
         Border.ClearBox(1, 1, 38, 22);
-        TextRend.DisplayString(1, 3, LightMagenta, Black, CharGen.READ_ERROR);
+        TextRend.DisplayString(1, 3, LightMagenta, Black, GDConsts.joystickReadError);
         Delay(2000);
         Exit
       end
@@ -2291,11 +2264,6 @@ begin
   GDVars.joyCalib[1].y.words[5] :=
     GDVars.joyCalib[1].y.words[3] + (GDVars.joyCalib[1].y.words[6] - GDVars.joyCalib[1].y.words[3]) * 2 div 3;
   GDVars.joystickActive := 1
-end;
-
-{ Empty routine with no callers. }
-procedure NoopCharGen;
-begin
 end;
 begin
 end.

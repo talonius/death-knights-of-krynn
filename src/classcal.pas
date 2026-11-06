@@ -3,7 +3,7 @@
 {$O+,F+}
 unit ClassCal;
 interface
-uses C_Class, C_Race, C_Stat, Types, GDConsts, GDVars;
+uses C_Class, C_Race, GDConsts, GDVars, Types, C_Stat;
 
 { Recalculates from the class levels. thac0Base is the highest thac0Table entry over the classes, plus 1 for deity 3 or
   for deity 6 with a mountain or hill dwarf. Fighters, paladins and knights above level 6 get attack rate 3, above 12

@@ -3,22 +3,7 @@
 {$F+,O+,S-,R-,V-,B-,I-}
 unit Money;
 interface
-uses C_Ifc, C_Npc, Crt, C_Keys, GDConsts, GDVars, Types, TextRend, Border, GameIo, FxEngine, MenuCore, CharHlp;
-
-{ Gives the most weight a character can carry: its weight allowance plus 1500.
-  @param(character The character.)
-  @returns(The capacity.) }
-function CarryingCapacity(character: Types.PCharacter): Word;
-
-{ Takes weight off a character's encumbrance.
-  @param(character The character.)
-  @param(weight The weight removed.) }
-procedure RemoveWeight(character: Types.PCharacter; weight: Word);
-
-{ Adds weight to a character's encumbrance.
-  @param(character The character.)
-  @param(weight The weight added.) }
-procedure AddWeight(character: Types.PCharacter; weight: Word);
+uses C_Ifc, C_Npc, Crt, C_Keys, GDConsts, GDVars, CharHlp, TextRend, Border, GameIo, FxEngine, MenuCore, Types;
 
 { Tells whether more weight would overload a character.
   @param(character Character to test.)
@@ -31,10 +16,6 @@ function CheckOverload(character: Types.PCharacter; weight: Word; var takable: W
   and marks the pool as holding money. }
 procedure PoolMoney;
 
-{ Counts the party members and animated creatures (NPC value 0 or $B3).
-  @returns(The count.) }
-function CountPoolers: Byte;
-
 { Divides the pool. Each money type's share is the pool divided by CountPoolers, the remainder held back. The first pass
   gives each member with an NPC value below $80, highest money type first, its share and one coin of the remainder while
   they fit, or as much of the share as it can carry, the rest going back to the remainder. The second pass hands what is
@@ -46,11 +27,6 @@ procedure ShareMoney;
 { Lists the money in the pool and lets the current character take an amount of the chosen type, until the pool is empty
   or the player leaves. Note: leaving the menu without choosing does not free the list it was built from. }
 procedure TakeMoneyMenu;
-
-{ Gives the current character steel pieces; what it cannot carry goes into the pool, after a pause and a message saying
-  so.
-  @param(amount The amount of steel.) }
-procedure GiveSteel(amount: Word);
 
 { Reads a coin type from the first letter of source after spaces: G gems (5), S steel (4), J jewelry (6). Note: any
   other letter leaves the result unset.
@@ -95,21 +71,26 @@ procedure DetermineTreasure(var coins, items: Boolean);
   @param(ok Set False when there is nothing to appraise, else True.) }
 procedure AppraiseMenu(var ok: Boolean);
 implementation
-const OVERLOAD_MESSAGE = 'Overloaded.  Money will be put in Pool.';
-      TRADE_OVERLOAD_MESSAGE = 'Overloaded';
-      NO_GEMS_MESSAGE = 'No Gems or Jewelry';
-      GOLD_VALUE_SUFFIX = ' steel.';
 
+{ Gives the most weight a character can carry: its weight allowance plus 1500.
+  @param(character The character.)
+  @returns(The capacity.) }
 function CarryingCapacity(character: Types.PCharacter): Word;
 begin
   CarryingCapacity := CharHlp.WeightAllowance(character) + 1500
 end;
 
+{ Takes weight off a character's encumbrance.
+  @param(character The character.)
+  @param(weight The weight removed.) }
 procedure RemoveWeight(character: Types.PCharacter; weight: Word);
 begin
   character^.encumbrance := character^.encumbrance - weight
 end;
 
+{ Adds weight to a character's encumbrance.
+  @param(character The character.)
+  @param(weight The weight added.) }
 procedure AddWeight(character: Types.PCharacter; weight: Word);
 begin
   character^.encumbrance := character^.encumbrance + weight
@@ -131,11 +112,14 @@ begin
   end
 end;
 
+{ Gives the current character steel pieces; what it cannot carry goes into the pool, after a pause and a message saying
+  so.
+  @param(amount The amount of steel.) }
 procedure GiveSteel(amount: Word);
 var takable: Word;
 begin
   if Money.CheckOverload(GDVars.currentCharacter, amount, takable) then begin
-    CharHlp.PrintBottomLine(Money.OVERLOAD_MESSAGE);
+    CharHlp.PrintBottomLine(GDConsts.overloadPoolText);
     TextRend.PauseOnly;
     GameIo.FlushKeys;
     Inc(GDVars.currentCharacter^.coins[4], takable);
@@ -204,7 +188,7 @@ begin
     receiver^.coins[moneyType] := receiver^.coins[moneyType] + amount;
     Money.AddWeight(receiver, amount)
   end else begin
-    CharHlp.PrintBottomLine(Money.TRADE_OVERLOAD_MESSAGE);
+    CharHlp.PrintBottomLine(GDConsts.tradeOverloadMessage);
     TextRend.PauseOnly;
     GameIo.FlushKeys
   end
@@ -231,6 +215,8 @@ begin
   end
 end;
 
+{ Counts the party members and animated creatures (NPC value 0 or $B3).
+  @returns(The count.) }
 function CountPoolers: Byte;
 var
   character: Types.PCharacter;
@@ -336,7 +322,7 @@ procedure TakeMoney(character: Types.PCharacter; amount: Word; moneyType: ShortI
 var takable: Word;
 begin
   if Money.CheckOverload(character, amount, takable) then begin
-    CharHlp.PrintBottomLine(Money.TRADE_OVERLOAD_MESSAGE);
+    CharHlp.PrintBottomLine(GDConsts.tradeOverloadMessage);
     TextRend.PauseOnly;
     GameIo.FlushKeys
   end else begin
@@ -357,14 +343,14 @@ begin
   case source[index] of
     'G': begin
       ParseMoneyType := 5;
-      typeName := 'Gems '
+      typeName := Concat(GDConsts.moneyNames[5], ' ')
     end;
     'S': begin
-      typeName := 'steel ';
+      typeName := Concat(GDConsts.moneyNames[4], ' ');
       ParseMoneyType := 4
     end;
     'J': begin
-      typeName := 'Jewelry ';
+      typeName := Concat(GDConsts.moneyNames[6], ' ');
       ParseMoneyType := 6
     end
   end
@@ -413,8 +399,7 @@ begin
     saved := list;
     MenuCore.EnableChoices(1);
     key := Char(MenuCore.MenuVertical(GDConsts.selectCoinQuery, GDConsts.selectMenuText, 2, 2, 15, 8, list, 1, 1,
-                                      redrawByte, menuIndex,
-                                      selected));
+                                      redrawByte, menuIndex, selected));
     if (selected = nil) or (key = #1) or ((GDVars.menuExtendedKey <> 0) and (key = C_Keys.ESCAPE)) then
       leaving := True
     else begin
@@ -472,7 +457,7 @@ var
 begin
   ok := True;
   if (GDVars.currentCharacter^.coins[5] = 0) and (GDVars.currentCharacter^.coins[6] = 0) then begin
-    CharHlp.PrintBottomLine(Money.NO_GEMS_MESSAGE);
+    CharHlp.PrintBottomLine(GDConsts.noGemsMessage);
     ok := False
   end else
     repeat
@@ -517,7 +502,7 @@ begin
                 100: value := 2500
               end;
               Str(value, gemText);
-              gemText := Concat(GDConsts.gemValuePrefix, gemText, Money.GOLD_VALUE_SUFFIX);
+              gemText := Concat(GDConsts.gemValuePrefix, gemText, GDConsts.goldValueSuffix);
               TextRend.DisplayString(1, 12, White, Black, gemText);
               FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF);
               GDVars.enabledChoices[0].ordinal := 0;
@@ -566,7 +551,7 @@ begin
                 91..100: value := Trunc(Random(5000)) + 1000
               end;
               Str(value, jewelryText);
-              jewelryText := Concat(GDConsts.jewelValuePrefix, jewelryText, Money.GOLD_VALUE_SUFFIX);
+              jewelryText := Concat(GDConsts.jewelValuePrefix, jewelryText, GDConsts.goldValueSuffix);
               TextRend.DisplayString(1, 12, White, Black, jewelryText);
               FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF);
               GDVars.enabledChoices[0].ordinal := 0;

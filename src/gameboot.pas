@@ -5,13 +5,12 @@
   and a colon, and is not on the floppy the program runs from. The sound menu accepts 6, for which no line is written,
   so every later line would be read one off. It then reads DKK.CFG back: it saves the BIOS video mode and sets the
   chosen one, sizes the overlay buffer to 160K bytes or halts for lack of memory, and sets the sound mode, the input
-  device, the save paths and the joystick calibration. For Tandy it moves the free-list block at FreePtr 1024 paragraphs
-  lower, points FreePtr there, stores GDConsts.tandyHeapReserve shl 3 in FreeMin, the word after FreePtr, and records
-  FreePtr as GDVars.tandyGfxReserve. }
-{$F+,O+,S-,R-,V-,B-,I-}
+  device, the save paths and the joystick calibration. For Tandy it lowers HeapEnd by 1024 paragraphs. }
+{$O+,F+}
+{$I-}
 unit GameBoot;
 interface
-uses C_Sound, GDConsts, GDVars, Crt, Dos, Overlay, DaxIo, TextRend, Joystick, GameIo, Blit, Types;
+uses C_Sound, GDConsts, GDVars, Crt, Dos, Overlay, DaxIo, Joystick, Blit, TextRend, GameIo, Types;
 implementation
 const
   SOUND_CMS = 0;
@@ -19,10 +18,12 @@ const
   GFX_RESERVE_PARAS = 1024;
   OVERLAY_BUF_BYTES = 163840;
 type
-  TFreePtrW = record o: Word; s: Word; extra: Word; end;
+  THeapEndW = record
+    o: Word;
+    s: Word;
+  end;
 var
-  freePtrW: TFreePtrW absolute FreePtr;
-  heapTopBlk: Types.PFreeBlk absolute FreePtr;
+  heapEndW: THeapEndW absolute HeapEnd;
 
 { Waits for a digit key within a range and echoes it.
   @param(minDigit The lowest digit accepted.)
@@ -42,9 +43,8 @@ begin
   OvrInit('GAME.OVR');
   GDVars.savedOvrRead := OvrReadBuf;
   OvrReadBuf := GameIo.OverlayReadWithBeep;
-  FSplit(FExpand('*.exe'), GDVars.dataPath, GDVars.exeName, GDVars.exeExt);
-  if GDVars.dataPath[1] < 'C' then
-  begin
+  FSplit(FExpand('*.exe'), DirStr(GDVars.dataPath), NameStr(GDVars.exeName), ExtStr(GDVars.exeExt));
+  if GDVars.dataPath[1] < 'C' then begin
     if GDVars.dataPath[1] = 'A' then
       GDVars.masterPath := 'B:\'
     else
@@ -52,20 +52,19 @@ begin
   end else
     GDVars.masterPath := GDVars.dataPath;
   GDVars.masterDrive := GDVars.masterPath[1];
-  if not DaxIo.FileExists('dkk.cfg') then
-  begin
+  if not DaxIo.FileExists('dkk.cfg') then begin
     Assign(GDVars.configFile, 'dkk.cfg');
     Rewrite(GDVars.configFile);
     GDVars.configIoError := IOResult;
     if GDVars.configIoError <> 0 then begin
       ClrScr;
-      WriteLn('Sorry, disk A can''t be write-protected.');
+      WriteLn(GDConsts.copyProtect1);
       WriteLn;
-      WriteLn('If these are your masters, use DISKCOPY to make duplicates.');
+      WriteLn(GDConsts.copyProtect2);
       Halt(1);
     end;
     ClrScr;
-    Write('GRAPHICS ADAPTER TYPE:  [1] CGA  [2] EGA  [3] Tandy  ');
+    Write(GDConsts.graphicsPrompt);
     GDVars.menuChoice := GameBoot.ReadMenuChoice(1, 3);
     GDVars.tandySelected := 0;
     case GDVars.menuChoice of
@@ -74,11 +73,11 @@ begin
       3: begin WriteLn(GDVars.configFile, 'T'); GDVars.tandySelected := 1; end;
     end;
     ClrScr;
-    WriteLn('SOUND TYPE:  [1] C/MS');
-    WriteLn('             [2] AdLib');
-    WriteLn('             [3] Tandy 1000');
-    WriteLn('             [4] PC');
-    WriteLn('             [5] Silent');
+    WriteLn(GDConsts.soundPrompt1);
+    WriteLn(GDConsts.soundPrompt2);
+    WriteLn(GDConsts.soundPrompt3);
+    WriteLn(GDConsts.soundPrompt4);
+    WriteLn(GDConsts.soundPrompt5);
     GDVars.menuChoice := GameBoot.ReadMenuChoice(1, 6);
     case GDVars.menuChoice of
       1: WriteLn(GDVars.configFile, 'C');
@@ -89,7 +88,7 @@ begin
     end;
     GDVars.joystickActive := 0;
     ClrScr;
-    Write('ALTERNATE INPUT TYPE:  [1] JOYSTICK  [2] MOUSE  [3] NEITHER  ');
+    Write(GDConsts.inputPrompt);
     GDVars.menuChoice := GameBoot.ReadMenuChoice(1, 3);
     case GDVars.menuChoice of
       1: begin WriteLn(GDVars.configFile, 'J'); GDVars.joystickActive := 1; end;
@@ -101,44 +100,40 @@ begin
     end;
     ClrScr;
     GDVars.defaultPath := GDVars.masterPath + 'SAVE';
-    Write('PATH TO SAVE DATA (DEFAULT - ' + GDVars.defaultPath + '):  ');
+    Write(GDConsts.pathPrompt + GDVars.defaultPath + '):  ');
     ReadLn(GDVars.enteredPath);
     GDVars.enteredPath[1] := UpCase(GDVars.enteredPath[1]);
     if not ((Length(GDVars.enteredPath) >= 4) and (GDVars.enteredPath[2] = ':') and
             (not (GDVars.enteredPath[1] in ['A', 'B']) or (GDVars.enteredPath[1] <> GDVars.dataPath[1])) and
-            (GDVars.enteredPath[1] in ['A'..'P'])) then
-    begin
+            (GDVars.enteredPath[1] in ['A'..'P'])) then begin
       GDVars.enteredPath := GDVars.defaultPath;
-      WriteLn('USING DEFAULT PATH: ' + GDVars.enteredPath);
+      WriteLn(GDConsts.usingDefaultText + GDVars.enteredPath);
       Delay(2000);
     end;
-    for GDVars.configIndex := 1 to Length(GDVars.enteredPath) do
-      GDVars.enteredPath[GDVars.configIndex] := UpCase(GDVars.enteredPath[GDVars.configIndex]);
-    if GDVars.enteredPath[Length(GDVars.enteredPath)] <> '\' then
-      GDVars.enteredPath := GDVars.enteredPath + '\';
+    for GDVars.configIndex := 1 to Length(GDVars.enteredPath) do GDVars.enteredPath[GDVars.configIndex] :=
+        UpCase(GDVars.enteredPath[GDVars.configIndex]);
+    if GDVars.enteredPath[Length(GDVars.enteredPath)] <> '\' then GDVars.enteredPath := GDVars.enteredPath + '\';
     WriteLn(GDVars.configFile, GDVars.enteredPath);
     ClrScr;
     GDVars.enteredPath := '';
     if GDVars.masterPath[1] < 'C' then
-      GDVars.defaultPath := GDVars.masterPath[1] + ':\SAVE'
+      GDVars.defaultPath := GDVars.masterPath[1] + GDConsts.pathSuffixA
     else
-      GDVars.defaultPath := GDVars.masterPath[1] + ':\KRYNN\SAVE';
-    WriteLn('PATH TO SAVE DATA FOR CHAMPIONS OF KRYNN');
+      GDVars.defaultPath := GDVars.masterPath[1] + GDConsts.pathSuffixB;
+    WriteLn(GDConsts.secondPathPrompt);
     Write('(DEFAULT - ' + GDVars.defaultPath + '):  ');
     ReadLn(GDVars.enteredPath);
     GDVars.enteredPath[1] := UpCase(GDVars.enteredPath[1]);
     if not ((Length(GDVars.enteredPath) >= 4) and (GDVars.enteredPath[2] = ':') and
             (not (GDVars.enteredPath[1] in ['A', 'B']) or (GDVars.enteredPath[1] <> GDVars.dataPath[1])) and
-            (GDVars.enteredPath[1] in ['A'..'P'])) then
-    begin
+            (GDVars.enteredPath[1] in ['A'..'P'])) then begin
       GDVars.enteredPath := GDVars.defaultPath;
       WriteLn('USING DEFAULT PATH: ' + GDVars.enteredPath);
       Delay(2000);
     end;
-    for GDVars.configIndex := 1 to Length(GDVars.enteredPath) do
-      GDVars.enteredPath[GDVars.configIndex] := UpCase(GDVars.enteredPath[GDVars.configIndex]);
-    if GDVars.enteredPath[Length(GDVars.enteredPath)] <> '\' then
-      GDVars.enteredPath := GDVars.enteredPath + '\';
+    for GDVars.configIndex := 1 to Length(GDVars.enteredPath) do GDVars.enteredPath[GDVars.configIndex] :=
+        UpCase(GDVars.enteredPath[GDVars.configIndex]);
+    if GDVars.enteredPath[Length(GDVars.enteredPath)] <> '\' then GDVars.enteredPath := GDVars.enteredPath + '\';
     WriteLn(GDVars.configFile, GDVars.enteredPath);
     WriteLn(GDVars.configFile, 'F');
     Joystick.CalibrateJoystick;
@@ -149,7 +144,7 @@ begin
     Close(GDVars.configFile);
   end;
   ClrScr;
-  WriteLn('TANDY 1000 USERS - Make sure NUMLOCK is on.');
+  WriteLn(GDConsts.tandyNotice);
   Delay(2000);
   Assign(GDVars.configFile, 'dkk.cfg');
   Reset(GDVars.configFile);
@@ -169,26 +164,25 @@ begin
     end;
     'T': begin
       GDVars.displayMode := Types.Tandy;
-      GDVars.tandyFreeBlock := Ptr(freePtrW.s - GameBoot.GFX_RESERVE_PARAS, freePtrW.o);
-      Move(heapTopBlk^, GDVars.tandyFreeBlock^, SizeOf(Types.TFreeBlk));
-      FreePtr := GDVars.tandyFreeBlock;
+      GDVars.tandyFreeBlock := Ptr(heapEndW.s - GameBoot.GFX_RESERVE_PARAS, heapEndW.o);
+      HeapEnd := GDVars.tandyFreeBlock;
       Blit.SetVideoMode(GDConsts.tandyVideoMode);
-      freePtrW.extra := GDConsts.tandyHeapReserve shl 3;
-      GDVars.tandyGfxReserve := FreePtr;
     end;
-    else begin GDVars.displayMode := Types.Cga; Blit.SetVideoMode(GDConsts.cgaVideoMode); end;
+    else begin
+      GDVars.displayMode := Types.Cga;
+      Blit.SetVideoMode(GDConsts.cgaVideoMode);
+    end;
   end;
   if GameBoot.OVERLAY_BUF_BYTES - OvrGetBuf <= MemAvail then
     OvrSetBuf(GameBoot.OVERLAY_BUF_BYTES)
   else begin
     Blit.RestoreVideoMode;
-    WriteLn('Not enough memory to run game.  You need ', GameBoot.OVERLAY_BUF_BYTES - OvrGetBuf - MemAvail,
-            ' more bytes.');
+    WriteLn(GDConsts.memErrorText, GameBoot.OVERLAY_BUF_BYTES - OvrGetBuf - MemAvail, GDConsts.moreBytesText);
     Halt;
   end;
   if OvrResult <> 0 then begin
     Blit.RestoreVideoMode;
-    WriteLn('Overlay error, program abort!');
+    WriteLn(GDConsts.overlayErrorText);
     Halt;
   end;
   ReadLn(GDVars.configFile, GDVars.configKey);

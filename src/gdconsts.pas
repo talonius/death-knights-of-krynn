@@ -258,10 +258,6 @@ const
   { by class: the hit die's sides }
   hitDieSides: array[0..7] of Byte = (
     8, 8, 10, 10, 8, 4, 6, 10);
-  { the spell list's level headings, by spell level; Magic reads them }
-  levelHeadings: array[0..9] of String[40] = (
-    'Special', '1st Level', '2nd Level', '3rd Level', '4th Level', '5th Level', '6th Level', '7th Level', '8th Level',
-    '9th Level');
   { by direction: the column step to a cone's near cell, as CollectConeTargets widens it }
   directionNearX: array[0..7] of ShortInt = (
     -1, 0, 0, 1, 1, 0, 0, -1);
@@ -438,73 +434,83 @@ const
     'Okay', 'Animated', 'tempgone', 'Running', 'Unconscious', 'Dying', 'Dead', 'Stoned', 'Gone');
   { the party menu CharGen.MainMenu shows, with each line's starting enable }
   partyMenuItems: array[0..12] of Types.TMenuItem = (
-    (caption: 'Create New Character'; enabled: 1), (caption: 'Drop Character'; enabled: 0),
-    (caption: 'Modify Character'; enabled: 0), (caption: 'Train Character'; enabled: 0),
-    (caption: 'Knight Change Order'; enabled: 0), (caption: 'View Character'; enabled: 0),
-    (caption: 'Add Character to Party'; enabled: 1), (caption: 'Remove Character from Party'; enabled: 0),
-    (caption: 'Load Saved Game'; enabled: 1), (caption: 'Save Current Game'; enabled: 0),
-    (caption: 'Begin Adventuring'; enabled: 0), (caption: 'Initialize Mouse/Joystick'; enabled: 1),
+    (caption: 'Create New Character'; enabled: 1),
+    (caption: 'Drop Character'; enabled: 0),
+    (caption: 'Modify Character'; enabled: 0),
+    (caption: 'Train Character'; enabled: 0),
+    (caption: 'Knight Change Order'; enabled: 0),
+    (caption: 'View Character'; enabled: 0),
+    (caption: 'Add Character to Party'; enabled: 1),
+    (caption: 'Remove Character from Party'; enabled: 0),
+    (caption: 'Load Saved Game'; enabled: 1),
+    (caption: 'Save Current Game'; enabled: 0),
+    (caption: 'Begin Adventuring'; enabled: 0),
+    (caption: 'Initialize Mouse/Joystick'; enabled: 1),
     (caption: 'Exit to DOS'; enabled: 1));
   { Magic.CastSpell and ViewChar ask it before an item is used up }
-  loseQuery: String[40] = 'Lose it? ';
+  loseQuery: String[10] = 'Lose it? ';
   { Magic.CastSpell, for a spell the area forbids }
-  cantCastHereText: String[40] = 'Can''t be cast here...';
+  cantCastHereText: String[30] = 'Can''t be cast here...';
   { Magic.CastSpell's subject for an item's spell }
-  itemLabel: String[40] = 'That item';
+  itemLabel: String[10] = 'That item';
   { Magic.CastSpell, for a combat-only item used outside combat }
-  combatOnlyItemText: String[40] = 'Is a combat-only item...';
+  combatOnlyItemText: String[30] = 'Is a combat-only item...';
   { Magic.CastSpell, before an item's spell }
-  useItemPrompt: String[40] = 'Use it? ';
+  useItemPrompt: String[10] = 'Use it? ';
   { Magic.CastSpell's verb in the casting line }
-  castsText: String[40] = 'casts';
+  castsText: String[10] = 'casts';
   { Magic.CastSpell's question once a spell is chosen }
-  abortSpellPrompt: String[40] = 'Abort Spell';
+  abortSpellPrompt: String[20] = 'Abort Spell';
   { Magic.CastSpell's answer when it is aborted }
-  spellAbortedText: String[40] = 'Spell Aborted';
+  spellAbortedText: String[20] = 'Spell Aborted';
   { Money.TakeMoneyMenu's prompt for gems and jewelry, before the kind }
-  howMany: String[40] = 'How many ';
+  howMany: String[10] = 'How many ';
   { the end of Money.TakeMoneyMenu's prompt }
-  takePromptTail: String[40] = ' will you take? ';
+  takePromptTail: String[20] = ' will you take? ';
   { the prompt for coins, before the kind }
-  howMuch: String[40] = 'How much ';
+  howMuch: String[10] = 'How much ';
   { Money.AppraiseMenu's count of gems }
-  gemsCountLabel: String[40] = 'gems : ';
+  gemsCountLabel: String[10] = 'gems : ';
   { Money.AppraiseMenu's count of jewelry }
-  jewelryCountLabel: String[40] = 'jewelry : ';
+  jewelryCountLabel: String[10] = 'jewelry : ';
   { Money.AppraiseMenu's heading over the two counts }
-  collectionMessage: String[40] = 'You have a fine collection of:';
+  collectionMessage: String[30] = 'You have a fine collection of:';
   { Money.AppraiseMenu's valuation of one gem }
-  gemValuePrefix: String[40] = 'The gem is valued at ';
+  gemValuePrefix: String[30] = 'The gem is valued at ';
   { Money.AppraiseMenu's valuation of one jewel }
-  jewelValuePrefix: String[40] = 'The jewel is valued at ';
+  jewelValuePrefix: String[30] = 'The jewel is valued at ';
   { the coin menu's prompt when taking, dropping or trading money }
-  selectCoinQuery: String[40] = 'select type of coin ';
+  selectCoinQuery: String[20] = 'select type of coin ';
   { ViewChar.TradeTreasureMenu's prompt for the receiving character }
-  tradeToText: String[40] = 'trade to?';
+  tradeToText: String[10] = 'trade to?';
   { the end of ViewChar.TradeTreasureMenu's amount prompt }
-  tradeAmountText: String[40] = 'will you trade? ';
+  tradeAmountText: String[20] = 'will you trade? ';
+  { Money.AppraiseMenu when there is nothing to appraise }
+  noGemsMessage: String[20] = 'no gems or jewelry';
+  { the end of a valuation }
+  goldValueSuffix: String[10] = ' steel.';
   { GameTime.CampRest's question when a rest is broken off }
-  stopRestPrompt: String[40] = 'Stop resting? ';
+  stopRestPrompt: String[20] = 'Stop resting? ';
   { ViewChar.CheckItemAvail, for a scroll a character is scribing from }
   scribeMessage: String[40] = ' was going to scribe from that scroll';
   { ViewChar.UseItemMenu's heading }
-  itemsLabel: String[40] = 'Items';
+  itemsLabel: String[10] = 'Items';
   { ViewChar.UseItemMenu's heading while readying }
-  readyItemLabel: String[40] = 'Ready Item';
+  readyItemLabel: String[20] = 'Ready Item';
   { the start of ViewChar.UseItemMenu's drop warning }
-  dropYour: String[40] = 'Your ';
+  dropYour: String[10] = 'Your ';
   { the end of the drop warning, which Camp shows too }
-  goneForever: String[40] = 'will be gone forever';
+  goneForever: String[20] = 'will be gone forever';
   { ViewChar.UseItemMenu, for an item used before it is readied }
-  mustBeReadied: String[40] = 'Must be readied';
+  mustBeReadied: String[20] = 'Must be readied';
   { the start of ViewChar.SellItem's offer }
-  sellOfferPrefix: String[40] = 'I''ll give you ';
+  sellOfferPrefix: String[20] = 'I''ll give you ';
   { the middle of the offer }
-  steelPiecesFor: String[40] = ' steel pieces for your ';
+  steelPiecesFor: String[30] = ' steel pieces for your ';
   { the end of a sale or identify offer }
-  dealQuery: String[40] = 'is it a deal? ';
+  dealQuery: String[20] = 'is it a deal? ';
   { ViewChar.SellItem once a sale is made }
-  soldText: String[40] = 'sold!';
+  soldText: String[10] = 'sold!';
   { a payment a character cannot carry goes to the pool }
   overloadPoolText: String[40] = 'overloaded. money will be put in pool.';
   { ViewChar.IdentifyItem's offer }
@@ -512,251 +518,689 @@ const
   { ViewChar.IdentifyItem for an item already identified }
   identifyNoNewsText: String[40] = 'i cannot tell anything new about your ';
   { ViewChar.IdentifyItem's answer, before the kind }
-  identifyKindText: String[40] = 'it looks like some sort of ';
+  identifyKindText: String[30] = 'it looks like some sort of ';
   { the end of ViewChar.DropMoneyMenu's amount prompt when dropping }
-  dropAmountText: String[40] = 'will you drop? ';
+  dropAmountText: String[20] = 'will you drop? ';
   { the end of the amount prompt when depositing }
-  giveAmountText: String[40] = 'will you deposit? ';
+  giveAmountText: String[20] = 'will you deposit? ';
   { the quit question in camp and on the party menu }
-  quitToDosPrompt: String[40] = 'Quit to DOS ';
+  quitToDosPrompt: String[20] = 'Quit to DOS ';
   { CharGen.MainMenu's quit question while the game is unsaved }
-  quitUnsavedQuery: String[40] = 'game not saved. quit anyway? ';
+  quitUnsavedQuery: String[30] = 'game not saved. quit anyway? ';
   { CharGen.CreateCharacterMenu's race menu title }
-  pickRaceMenu: String[40] = 'Pick Race';
+  pickRaceMenu: String[10] = 'Pick Race';
   { the gender menu title }
-  pickGenderMenu: String[40] = 'Pick Gender';
+  pickGenderMenu: String[20] = 'Pick Gender';
   { the class menu title }
-  pickClassMenu: String[40] = 'Pick Class';
+  pickClassMenu: String[10] = 'Pick Class';
   { the deity menu title }
-  pickDeityMenu: String[40] = 'Pick Diety';
+  pickDeityMenu: String[10] = 'Pick Diety';
   { the alignment menu title }
-  pickAlignmentMenu: String[40] = 'Pick Alignment';
+  pickAlignmentMenu: String[20] = 'Pick Alignment';
   { CharGen.CreateCharacterMenu's question over the rolled stats }
-  rerollStatsQuery: String[40] = 'reroll stats? ';
+  rerollStatsQuery: String[20] = 'reroll stats? ';
   { its name prompt }
-  characterNameQuery: String[40] = 'character name: ';
+  characterNameQuery: String[20] = 'character name: ';
   { its last question }
-  saveCharacterQuery: String[40] = 'save character? ';
+  saveCharacterQuery: String[20] = 'save character? ';
   { the start of CharGen.DropCharacterMenu's question }
-  dropPrefix: String[40] = 'drop ';
+  dropPrefix: String[10] = 'drop ';
   { the middle of the question, after the name }
-  foreverText: String[40] = ' forever ';
+  foreverText: String[10] = ' forever ';
   { CharGen.DropCharacterMenu's confirmation }
-  areYouSureQuery: String[40] = 'Are you sure? ';
+  areYouSureQuery: String[20] = 'Are you sure? ';
   { one of CharGen.DropCharacterMenu's farewells, after the name }
-  dumpedOutBackText: String[40] = ' is dumped out back.';
+  dumpedOutBackText: String[20] = ' is dumped out back.';
   { another farewell }
-  bidsFarewellText: String[40] = ' bids you farewell.';
+  bidsFarewellText: String[20] = ' bids you farewell.';
   { the party's farewell, after the rest of the party's names }
-  sighOfReliefText: String[40] = ' breathe a sigh of relief.';
+  sighOfReliefText: String[30] = ' breathe a sigh of relief.';
   { CharGen.ModifyCharacterMenu, for a character that cannot be modified }
-  cantBeModifiedText: String[40] = ' can''t be modified.';
+  cantBeModifiedText: String[20] = ' can''t be modified.';
   { CharGen.AddCharacterMenu's question for the source game }
-  addFromWhereQuery: String[40] = 'add from where? ';
+  addFromWhereQuery: String[20] = 'add from where? ';
   { its title over the character list }
-  addCharacterQuery: String[40] = 'add a character: ';
+  addCharacterQuery: String[20] = 'add a character: ';
   { CharGen.CustomizeIcon, which needs a color adapter }
-  sorryNotInCgaText: String[40] = 'sorry not in CGA';
+  sorryNotInCgaText: String[20] = 'sorry not in CGA';
   { the heading over CustomizeIcon's two poses }
-  readyActionHeading: String[40] = 'ready   action';
+  readyActionHeading: String[20] = 'ready   action';
   { CustomizeIcon's label over the icon being made }
-  newText: String[40] = 'new';
+  newText: String[10] = 'new';
   { its label over the icon as it was }
-  oldText: String[40] = 'old';
+  oldText: String[10] = 'old';
   { CustomizeIcon's last question }
-  iconOkQuery: String[40] = 'is this icon ok? ';
+  iconOkQuery: String[20] = 'is this icon ok? ';
   { CharGen.TrainingMenu, for a character short of the next level }
-  notEnoughExperienceText: String[40] = 'not enough experience';
+  notEnoughExperienceText: String[20] = 'not enough experienc';
   { TrainingMenu's line after the name }
-  willBecomeText: String[40] = ' will become:';
+  willBecomeText: String[20] = ' will become:';
   { the start of each class line it lists }
-  aLevelText: String[40] = '    a level ';
+  aLevelText: String[20] = '    a level ';
   { the start of each further class line }
-  andALevelText: String[40] = 'and a level ';
+  andALevelText: String[20] = 'and a level ';
   { TrainingMenu's question }
-  wishToTrainQuery: String[40] = 'do you wish to train? ';
+  wishToTrainQuery: String[30] = 'do you wish to train? ';
   { after training, and EclVm's experience award }
-  congratulationsText: String[40] = 'congratulations...';
+  congratulationsText: String[20] = 'congratulations...';
   { CharGen.KnightPromotionMenu's line after the name }
-  petitioningText: String[40] = 'is petitioning to become a';
+  petitioningText: String[30] = 'is petitioning to become a';
   { the order of the Sword }
-  swordText: String[40] = 'sword';
+  swordText: String[10] = 'sword';
   { the order of the Rose }
-  roseText: String[40] = 'rose';
+  roseText: String[10] = 'rose';
   { before the order }
-  knightOfTheText: String[40] = 'knight of the ';
+  knightOfTheText: String[20] = 'knight of the ';
   { KnightPromotionMenu, for a knight below the order's level }
-  tooInexperiencedText: String[40] = ' is too inexperienced';
+  tooInexperiencedText: String[20] = ' is too inexperience';
   { KnightPromotionMenu, for a knight below the order's stat floors }
-  doesNotQualifyText: String[40] = ' does not qualify.';
+  doesNotQualifyText: String[20] = ' does not qualify.';
   { KnightPromotionMenu, for a knight who qualifies }
-  mayBecomeText: String[40] = ' may become a';
+  mayBecomeText: String[20] = ' may become a';
+  { CharGen.AddCharacterMenu refuses a second ranger }
+  tooManyRangers: String[30] = 'too many rangers in your party';
+  { TrainingMenu refuses a character who is down }
+  consciousTrainingMessage: String[30] = 'we only train conscious people';
+  { TrainingMenu refuses a class the hall does not train }
+  classTrainingMessage: String[40] = 'we don''t train that class here';
   { SaveLoad.CheckSaveDir asks for the imported characters' save disk, before the drive letter }
   askChampionsDiskPrefix: String[40] = 'is your c.o.k. save disk in drive ';
   { CheckSaveDir asks for this game's save disk }
-  askSaveDiskPrefix: String[40] = 'is your save disk in drive ';
+  askSaveDiskPrefix: String[30] = 'is your save disk in drive ';
   { after the drive letter }
-  askDiskSuffix: String[40] = ':? ';
+  askDiskSuffix: String[10] = ':? ';
   { this game's save directory is missing }
   noSaveDirectoryMessage: String[40] = 'error, can''t locate DKK directory';
   { the imported characters' save directory is missing }
   noChampionsDirectoryMessage: String[40] = 'error, can''t locate champ directory';
   { SaveLoad, when a save does not fit }
-  diskFullMessage: String[40] = 'can''t save.  disk is full.';
+  diskFullMessage: String[30] = 'can''t save.  disk is full.';
   { SaveLoad.SaveChar's question for a file that exists, before its name }
-  overwritePrefix: String[40] = 'overwrite ';
+  overwritePrefix: String[10] = 'overwrite ';
   { after the name }
-  overwriteSuffix: String[40] = '? ';
+  overwriteSuffix: String[10] = '? ';
   { SaveChar's prompt for another name }
-  newFileNamePrompt: String[40] = 'new file name : ';
+  newFileNamePrompt: String[20] = 'new file name : ';
   { Camp.PartyOrderMenu, after the picked name }
-  hasBeenSelected: String[40] = 'has been selected';
+  hasBeenSelected: String[20] = 'has been selected';
   { Camp.CampSpeedMenu's line, before the speed }
   gameSpeedPrompt: String[40] = 'Game Speed (0=fastest 9=slowest) = ';
   { Camp.CampMainMenu's heading }
-  partyMakesCamp: String[40] = 'the party makes camp...';
+  partyMakesCamp: String[20] = 'the party makes camp';
   { Explore.MapMainMenu, for a command the area does not allow }
-  notHere: String[40] = 'not here';
+  notHere: String[10] = 'not here';
   { CbtActs.CheckAttackAlly's question }
-  attackAllyPrompt: String[40] = 'attack ally? ';
+  attackAllyPrompt: String[20] = 'attack ally? ';
   { the aim menus' range readout }
-  rangeLabel: String[40] = 'range = ';
+  rangeLabel: String[10] = 'range = ';
   { the fight's magic switch turned on }
-  magicOnMsg: String[40] = 'magic on';
+  magicOnMsg: String[10] = 'magic on';
   { turned off }
-  magicOffMsg: String[40] = 'magic off';
+  magicOffMsg: String[10] = 'magic off';
   { Combat.MoveMenu, at the arena's edge }
-  fleePrompt: String[40] = 'flee ? ';
+  fleePrompt: String[10] = 'flee ? ';
   { Combat.MoveMenu, for a blocked cell }
-  cantGoThere: String[40] = 'cant''t go there';
+  cantGoThere: String[20] = 'cant''t go there';
   { Shop.ShopBuyMenu, between the buyer and a counted item }
-  buysText: String[40] = ' buys ';
+  buysText: String[10] = ' buys ';
   { between the buyer and a single item }
-  buysAText: String[40] = ' buys a ';
+  buysAText: String[10] = ' buys a ';
   { a purchase or identify the character cannot pay for }
-  notEnoughMoneyText: String[40] = 'not enough money.';
+  notEnoughMoneyText: String[20] = 'not enough money.';
   { Shop and Temple, when the party leaves money in the pool }
   leftMoney1: String[80] = 'as you leave a man says, "excuse me but you have left some money here." ';
   { the question that follows }
   leftMoney2: String[80] = 'do you want to go back and get your money?';
   { PostCbt.PostCombatSummary, when the party fled }
-  msgPartyFled: String[40] = 'the party has fled.';
+  msgPartyFled: String[20] = 'the party has fled.';
   { when the party lost }
-  msgLostFight: String[40] = 'you have lost the fight.';
+  msgLostFight: String[30] = 'you have lost the fight.';
   { when a duel was won }
-  msgWonDuel: String[40] = 'you have won the duel.';
+  msgWonDuel: String[30] = 'you have won the duel.';
   { when the party won }
-  msgPartyWon: String[40] = 'the party has won.';
+  msgPartyWon: String[20] = 'the party has won.';
   { never shown }
   withdrawalFeeText1: String[40] = 'the party makes a withdrawl. a small';
   { never shown }
   withdrawalFeeText2: String[40] = 'fee has been assessed by the bank.';
   { PostCombatSummary, when there is loot }
-  msgPartyTreasure: String[40] = 'the party has found treasure';
+  msgPartyTreasure: String[30] = 'the party has found treasure';
   { when there is none }
   msgNoTreasure: String[40] = 'the party has found no treasure';
   { the experience line after a duel }
-  duelistReceives: String[40] = 'the duelist receives ';
+  duelistReceives: String[30] = 'the duelist receives ';
   { the experience line after a fight }
-  eachReceives: String[40] = 'each character receives ';
+  eachReceives: String[30] = 'each character receives ';
   { the end of the experience line }
-  experiencePoints: String[40] = 'experience points.';
+  experiencePoints: String[20] = 'experience points.';
   { PostCbt.LootMenu, when the party leaves loot behind }
   treasureLeft1: String[40] = 'there is still treasure left. ';
   { the question that follows }
   treasureLeft2: String[80] = 'do you want to go back and claim your treasure?';
   { Temple.ConfirmCureAnyway's question for a character who needs no cure }
-  castAnywayPrompt: String[40] = 'cast cure anyway? ';
+  castAnywayPrompt: String[20] = 'cast cure anyway? ';
   { never shown }
-  payForCureQuery: String[40] = 'pay for cure? ';
+  payForCureQuery: String[20] = 'pay for cure? ';
   { after the name, once a cure lands }
-  isCuredText: String[40] = 'is cured.';
+  isCuredText: String[10] = 'is cured.';
   { Temple.CureBlindness, for a character who can see }
-  notBlindMessage: String[40] = 'is not blind.';
+  notBlindMessage: String[20] = 'is not blind.';
   { never shown }
-  notDiseasedMessage: String[40] = 'is not diseased.';
+  notDiseasedMessage: String[20] = 'is not diseased.';
   { Temple.RaiseDead, for one past raising }
-  cannotRaiseMessage: String[40] = 'cannot be raised.';
+  cannotRaiseMessage: String[20] = 'cannot be raised.';
   { Temple.RaiseDead, for one who is alive }
-  notDeadMessage: String[40] = 'is not dead.';
+  notDeadMessage: String[20] = 'is not dead.';
   { Temple.NeutralizePoison, for one who is not poisoned }
-  notPoisonedMessage: String[40] = 'is not poisoned.';
+  notPoisonedMessage: String[20] = 'is not poisoned.';
   { Temple.RemoveCurse, for one who is not cursed }
-  notCursedMessage: String[40] = 'is not cursed.';
+  notCursedMessage: String[20] = 'is not cursed.';
   { Temple.StoneToFlesh, for one who is not stone }
-  notStonedMessage: String[40] = 'is not stoned.';
+  notStonedMessage: String[20] = 'is not stoned.';
   { Temple.Restoration, for one who lost no levels }
-  noLostLevelsMessage: String[40] = 'has no lost levels.';
+  noLostLevelsMessage: String[20] = 'has no lost levels.';
   { Temple.HealMenu's greeting, after the name }
-  howCanWeHelp: String[40] = ', how can we help you?';
+  howCanWeHelp: String[20] = ', how can we help yo';
+  { GameInit.LoadItems, when ITEM0.DAX has no templates }
+  itemError: String[30] = 'unable to find item file';
+  { DaxIo.OverlayPrompt's request }
+  overlayMissing: String[30] = 'please insert overlay disk.';
+  { the end of DaxIo.OpenWithRetry's disk prompt }
+  promptColon: String[10] = ': <ENTER>';
+  { the start of OpenWithRetry's error, before the file name }
+  couldntFind: String[20] = 'Couldn''t find ';
+  { its end }
+  checkInstall: String[20] = '. Check install.';
+  { joystick calibration's first instruction, line one }
+  upperPrompt1: String[40] = 'Push joystick #1 to the extreme upper';
+  { line two }
+  upperPrompt2: String[40] = 'left position and press button #1.';
+  { calibration fails }
+  joystickReadError: String[30] = 'unable to read joystick';
+  { joystick calibration's second instruction, line one }
+  lowerPrompt1: String[40] = 'Push joystick #1 to the extreme lower';
+  { line two }
+  lowerPrompt2: String[40] = 'right position and press button #1.';
+  { FxEngine.YellTaunt's line, before the target }
+  wantsToKill: String[20] = 'wants to kill ';
+  { FxEngine.ConsiderTerrainEffects, in a stinking cloud }
+  startsCoughing: String[20] = 'starts to cough';
+  { the same, failing the save }
+  chokesFromNausea: String[30] = 'chokes and gags from nausea';
+  { The effect and combat messages, each shown after the character's name. A caster who loses a spell }
+  lostSpellMessage: String[20] = 'lost a spell';
+  { the start of FxEngine.InflictNonWeaponDamage's damage line }
+  takesPrefix: String[10] = 'takes ';
+  { after the count }
+  pointsDamage: String[20] = ' points of damage';
+  { the damage line for one point }
+  onePointDamage: String[30] = 'takes 1 point of damage ';
+  { the damage line's source: fire }
+  fromFire: String[10] = 'from fire';
+  { cold }
+  fromCold: String[10] = 'from cold';
+  { electricity }
+  fromElectricity: String[20] = 'from electricity';
+  { acid }
+  fromAcid: String[10] = 'from acid';
+  { magic }
+  fromMagic: String[10] = 'from magic';
+  { a poisoned character }
+  poisonedMessage: String[20] = 'is poisoned';
+  { a killed one }
+  killedMessage: String[10] = 'is killed';
+  { after a hit that leaves it dying }
+  dyingSuffix: String[20] = ', and is dying';
+  { a character that falls }
+  goesDown: String[10] = 'goes down';
+  { an effect that does not take }
+  unaffectedMessage: String[20] = 'is unaffected';
+  { Magic's detection, dispel and slow-poison spells }
+  isAffectedText: String[20] = 'is affected';
+  { Magic's globe, iron skin and protection spells }
+  isProtectedText: String[20] = 'is protected';
+  { FxEngine.CountDownAreaEffects, as a cloud ends }
+  explosionMessage: String[30] = 'the air clears a little...';
+  { never shown }
+  paralysisNoticeText: String[20] = 'is parlayzed';
+  { a stunned character }
+  stunnedText: String[20] = 'is stunned';
+  { under Sticks to Snakes }
+  fightingSnakesText: String[30] = 'is fighting with snakes';
+  { a silenced one }
+  silencedText: String[20] = 'is silenced';
+  { as Slow Poison ends }
+  poisonCollapseText: String[30] = 'collapses from poison';
+  { Spiritual Hammer's caster }
+  gainsItemText: String[20] = 'gains an item';
+  { Mirror Image losing an image }
+  lostImageText: String[20] = 'lost an image';
+  { in a stinking cloud }
+  coughingText: String[20] = 'is coughing';
+  { a creature Dispel Evil sends away }
+  dispelledText: String[20] = 'is dispelled';
+  { one that resists it }
+  resistsDispelEvilText: String[30] = 'resists dispel evil';
+  { a confused or frightened creature that flees }
+  runsAwayText: String[20] = 'runs away';
+  { a confused one }
+  confusedText: String[20] = 'is confused';
+  { a berserk one }
+  berserkText: String[20] = 'goes berserk';
+  { a confused one that turns on its side }
+  enragedText: String[10] = 'is enraged';
+  { haste's cost }
+  agesText: String[10] = 'ages';
+  { a missile avoided }
+  avoidsItText: String[10] = 'avoids it';
+  { a level drained }
+  drainedText: String[20] = 'gets drained';
+  { drained to death }
+  drainDeathText: String[20] = 'dies from drainning';
+  { drained to unconsciousness }
+  drainCollapseText: String[30] = 'collapses from drainning';
+  { a spell reflected }
+  reflectsSpellText: String[20] = 'reflects the spell';
+  { dragon fear }
+  terrifiedText: String[20] = 'is terrified';
+  { a healing effect or spell }
+  healedMessage: String[10] = 'is healed';
+  { the evil stench effect }
+  evilStenchText: String[20] = 'emits an evil stench';
+  { the smoke effect }
+  blindedBySmokeText: String[20] = 'is blinded by smoke';
+  { an attacker zapped back }
+  zappedText: String[20] = 'gets zapped';
+  { the disruption effect }
+  disruptedText: String[20] = 'is disrupted';
+  { Magic.SpellResurrection }
+  resurrectedText: String[20] = 'is ressurected';
+  { Magic.SpellResistCold }
+  coldResistantText: String[20] = 'is cold-resistant';
+  { the charm spells }
+  charmedText: String[20] = 'is charmed';
+  { Enlarge and Giant Strength }
+  strongerText: String[20] = 'is stronger';
+  { Magic.SpellReduce }
+  reducedText: String[20] = 'has been reduced';
+  { Magic.SpellFriends }
+  friendlyText: String[20] = 'is friendly';
+  { Magic.SpellShield }
+  shieldedText: String[20] = 'is shielded';
+  { Magic.SpellSleep }
+  fallsAsleepText: String[20] = 'falls asleep';
+  { Magic.SpellHold }
+  heldText: String[20] = 'is held';
+  { Magic.SpellResistFire }
+  fireResistantText: String[20] = 'is fire-resistant';
+  { the invisibility spells }
+  invisibleText: String[20] = 'is invisible';
+  { Magic.SpellMirrorImage }
+  duplicatedText: String[20] = 'is duplicated';
+  { Magic.SpellRayOfEnfeeblement }
+  weakenedText: String[20] = 'is weakened';
+  { Cure Blindness and Heal }
+  canSeeText: String[20] = 'can see';
+  { the blinding spells }
+  blindText: String[20] = 'is blind';
+  { paralysis by touch or wand }
+  paralyzedText: String[20] = 'is paralyzed';
+  { Magic.SpellPrayer }
+  prayingText: String[20] = 'is praying';
+  { Magic.SpellRemoveCurse on a character }
+  uncursedText: String[20] = 'is uncursed';
+  { Magic.SpellRemoveCurse on an item }
+  itemUncursedText: String[30] = 'has an item un-cursed';
+  { Magic.SpellBestowCurse }
+  cursedText: String[20] = 'is cursed';
+  { Magic.SpellBlink }
+  blinkingText: String[20] = 'is blinking';
+  { Haste and the speed potion }
+  hastedText: String[20] = 'is hasted';
+  { Heal on a feebleminded character }
+  regainsIntellectText: String[20] = 'regains intellect';
+  { Slow and Fumble }
+  slowedText: String[20] = 'is slowed';
+  { Magic.SpellDeathSpell }
+  dropsDeadText: String[20] = 'drops dead';
+  { Magic.SpellDisintegrate }
+  disintegratesText: String[20] = 'disentegrates';
+  { Magic.SpellStoneToFlesh }
+  noLongerStatusText: String[30] = 'is no longer a status';
+  { Magic.SpellNeutralizePoison }
+  unpoisonedText: String[20] = 'is unpoisoned';
+  { Sticks to Snakes ending on a giant }
+  smashesFlatText: String[20] = 'smashes them flat';
+  { Magic.SpellFleshToStone }
+  turnedToStoneText: String[20] = 'is turned to stone';
+  { Magic.SpellRaiseDead }
+  raisedText: String[10] = 'is raised';
+  { Magic.SpellSlayLiving }
+  slainText: String[10] = 'is slain';
+  { Magic.SpellEntangle }
+  entangledText: String[20] = 'is entangled';
+  { Magic.SpellFaerieFire }
+  highlightedText: String[20] = 'is highlighted';
+  { Magic.SpellDimensionDoor }
+  teleportsText: String[10] = 'teleports';
+  { Magic.SpellFumble }
+  clumsyText: String[10] = 'is clumsy';
+  { Magic.SpellYouth on a character younger than 19 }
+  eighteenYearsOldText: String[20] = 'is now 18 years old';
+  { Magic.SpellYouth }
+  youngerText: String[20] = 'becomes younger';
+  { Magic.SpellFireTouch }
+  coveredInFlameText: String[20] = 'is covered in flame';
+  { Magic.SpellIrresistibleDance }
+  dancingText: String[30] = 'begins to dance wildly';
+  { a gaze attack }
+  gazesText: String[10] = 'gazes!';
+  { a breath attack, before its kind }
+  breathesText: String[10] = 'breathes ';
+  { a dragon's breath kind: acid }
+  acidText: String[10] = 'acid';
+  { a dragon's breath kind: death }
+  deathText: String[10] = 'death';
+  { a dragon's breath kind: fire }
+  fireText: String[10] = 'fire';
+  { Magic.PrintCastSpellMsg, for a spell it does not name }
+  castsSpellText: String[20] = 'casts a spell';
+  { Combat.AgingDeaths' warning, after the name }
+  ageWarningMsg: String[30] = 'who is looking very old';
+  { the start of its death notice }
+  ageStrainMsg: String[80] = 'the strain of the last battle has worn heavily on ';
+  { the death notice's second line }
+  lastBreathMsg: String[80] = 'breathes deeply one last time and crumples to the ground.';
+  { the notice's pronoun for a male character }
+  heMsg: String[10] = 'he';
+  { for a female character }
+  sheMsg: String[10] = 'she';
+  { the death line, after the name }
+  ageDeathMsg: String[20] = 'dies from age';
+  { the end of the notice with no one left }
+  noWitnessMsg: String[80] = 'Sadly, no party member witnesses the passing of the champion.';
+  { with one member left, after the name }
+  oneWitnessMsg: String[80] = ' weeps at the loss of such a venerable companion.';
+  { with several left }
+  manyWitnessMsg: String[80] = ' The remaining party members are overcome with grief as they search ';
+  { the notice's last line, after the name }
+  bodySearchMsg: String[30] = '''s body for valuables.';
+  { Combat.EndOfRound, while a party member is dying }
+  teammateDying: String[30] = 'your teammate is dying';
+  { Combat.MeleeAttack, for a weapon that cannot strike }
+  notWithWeapon: String[30] = 'not with that weapon';
+  { GameTime.DisplayRestTime's label }
+  restLabel: String[10] = 'Rest Time:';
+  { GameTime.CheckRestingHeal, as a resting party heals }
+  partyHealedText: String[30] = 'The whole party is healed';
+  { GameTime.CheckMemorizeDone, after the name }
+  memorizedText: String[20] = 'has memorized';
+  { GameTime.CheckScribeDone, after the name }
+  scribedText: String[20] = 'has scribed';
+  { GameTime.CampRest, when a rest is interrupted }
+  interruptedText: String[40] = 'your repose is suddenly interrupted!';
+  { SaveLoad.LoadChar, when a character's spell file cannot be read }
+  unexpectedErrorPrefix: String[30] = 'problem openning magic file';
+  { SaveLoad.LoadCreatureData's error }
+  unableToLoadMonster: String[30] = 'unable to load monster';
+  { SaveLoad.SaveGame's error }
+  warningSaving: String[40] = 'warning: problem saving characters';
+  { SaveLoad.WriteVaultFile, when the vault does not fit }
+  noRoomMessage: String[40] = 'can''t save. no room on this disk.';
+  { the request that follows }
+  insertDiskMessage: String[30] = 'please insert another disk.';
+  { the pause line PostCbt and the message window end on }
+  pressAnyKey: String[30] = 'press any key to continue';
+  { the start of a load error, before the file }
+  loadError: String[20] = 'unable to load ';
+  { Sym8x8.Load8x8Set's load error, after the set number }
+  from8x8: String[20] = ' from 8x8d';
+  { the configurator's write-protect error, line one }
+  copyProtect1: String[40] = 'Sorry, disk A can''t be write-protected.';
+  { line two }
+  copyProtect2: String[80] = 'If these are your masters, use DISKCOPY to make duplicates.';
+  { the configurator's adapter question }
+  graphicsPrompt: String[80] = 'GRAPHICS ADAPTER TYPE: [1] CGA  [2] EGA  [3] Tandy  ';
+  { the sound question, one line per choice }
+  soundPrompt1: String[30] = 'SOUND TYPE:  [1] C/MS';
+  { the AdLib line }
+  soundPrompt2: String[30] = '             [2] AdLib';
+  { the Tandy line }
+  soundPrompt3: String[30] = '             [3] Tandy 1000';
+  { the PC speaker line }
+  soundPrompt4: String[30] = '             [4] PC';
+  { the silent line }
+  soundPrompt5: String[30] = '             [5] Silent';
+  { the configurator's input question }
+  inputPrompt: String[80] = 'ALTERNATE INPUT TYPE: [1] Joystick  [2] Mouse  [3] Neither  ';
+  { the save directory under the save path }
+  saveDirectoryName: String[10] = 'SAVE';
+  { the configurator's save path prompt, before the default }
+  pathPrompt: String[30] = 'PATH TO SAVE DATA (DEFAULT - ';
+  { when nothing is typed }
+  usingDefaultText: String[20] = 'USING DEFAULT PATH: ';
+  { the default save path on a floppy, after the drive letter }
+  pathSuffixA: String[10] = ':\SAVE';
+  { on a hard disk }
+  pathSuffixB: String[20] = ':\KRYNN\SAVE';
+  { the configurator's prompt for the imported saves' path }
+  secondPathPrompt: String[80] = 'PATH TO SAVE DATA FOR CHAMPIONS OF KRYNN';
+  { the configurator's Tandy reminder }
+  tandyNotice: String[80] = 'Tandy 1000 users make sure num lock is on.';
+  { the start-up memory error, before the shortfall }
+  memErrorText: String[80] = ' Not enough memory to run game.  You need ';
+  { after the shortfall }
+  moreBytesText: String[20] = ' more bytes.';
+  { the start-up overlay error }
+  overlayErrorText: String[30] = 'overlay error, program abort!';
+  { CombatSt.CombatStart's opening line }
+  battleBegins: String[20] = 'a battle begins...';
+  { EclVm.EclDamage, when the damage kills the party }
+  partyKilledText: String[30] = 'The entire party is killed!';
+  { EclVm.EclAwardExperience's party line }
+  partyGainsText: String[40] = 'Congratulations the party gains experien';
+  { its per-character line, after the name }
+  gainsSuffix: String[20] = ' gains experience!';
+  { EclVm.EclJournalEntry's line, before the number }
+  journalEntryPrefix: String[40] = 'This is recorded as journal entry ';
+  { Shop.DisplayShopMoney's character line }
+  goldLabel: String[20] = 'Personal funds:';
+  { its pool line }
+  poolLabel: String[20] = 'Pooled Funds:  ';
+  { a transfer the receiver cannot carry }
+  tradeOverloadMessage: String[20] = 'Overloaded';
+  { never shown }
+  insufficientMemoryText: String[30] = 'WARNING: Insufficient Memory';
+  { View3D.LoadWallSet's load error, after the set number }
+  fromWallMsg: String[20] = ' from walldef';
+  { View3D.Load3DMap's error }
+  geoError: String[40] = ' unable to load geo from load3dMap';
+  { CombatAi.CombatAiControl, for a monster that runs }
+  panicText: String[20] = ' flees in panic';
+  { CombatAi.CheckMorale, for a monster that breaks }
+  forcedToFlee: String[20] = 'is forced to flee';
+  { CheckMorale, for a monster that gives up }
+  surrenders: String[20] = 'surrenders';
+  { Portrait.Show3DSprite's range error }
+  spriteError: String[30] = 'illegal range in show3dsprite.';
+  { PostCbt.PostCombat, when the party is wiped out }
+  partyDestroyed: String[80] = 'the monsters rejoice for the party has been destroyed';
+  { EclVm.EclHMenu's default question }
+  whatDoYouDoText: String[20] = 'what do you do';
+  { CharHlp.PrintItemString's readied column for a readied item }
+  equippedText: String[10] = ' Yes ';
+  { for an item not readied }
+  unequippedText: String[10] = ' No  ';
+  { CharHlp.DisplayParty's name column heading }
+  nameHeader: String[10] = 'Name';
+  { its armor class and hit point column heading }
+  statsHeader: String[10] = 'AC  HP';
+  { CharHlp.CombatPrintCreatureInfo's hit point label }
+  hitPointsHeader: String[10] = 'hitpoints';
+  { its armor class label }
+  armorClassHeader: String[10] = 'AC';
+  { after a helpless combatant's name }
+  helplessText: String[10] = '(helpless)';
+  { after a casting combatant's name }
+  castingText: String[10] = '(casting)';
+  { CharHlp.RemoveItem's nil-item error }
+  nilItemText: String[30] = 'Error.  Nil Item Pointer';
+  { RemoveItem's error for an item not carried }
+  missingItemText: String[30] = 'tried to lose item and failed';
+  { CharHlp.AnnounceHealStatus at full hit points }
+  fullyHealedText: String[20] = 'is fully healed';
+  { below full }
+  partiallyHealedText: String[20] = 'is partially healed';
+  { CharHlp.Guard's line }
+  guardingText: String[10] = 'guarding';
+  { CharHlp.DisplayNoncombatInterface's heading }
+  noncombatMessage: String[20] = 'bank of gargath';
+  { CharHlp.PrintMiscInfo's mode label in camp }
+  combatInfoText: String[10] = ' camping';
+  { its label while searching }
+  exploreInfoText: String[10] = ' search';
+  { CharHlp.BandageDying's line }
+  bandageText: String[20] = ' is bandaged';
+  { CbtActs.ProcessAttackResult's backstab line }
+  backstabsText: String[20] = '-backstabs-';
+  { its line for a helpless victim }
+  slaysHelplessText: String[20] = 'slays helpless';
+  { the attack verb }
+  attacksText: String[10] = 'attacks';
+  { after a rear attack }
+  fromBehindText: String[20] = '(from behind)';
+  { never shown }
+  cruelBlowText: String[20] = 'with one cruel blow';
+  { after a damage count of one }
+  damagePointText: String[10] = ' point ';
+  { after a larger count }
+  damagePointsText: String[10] = ' points ';
+  { the end of the damage line }
+  damageSuffix: String[10] = ' of damage';
+  { a miss }
+  missesText: String[10] = 'and misses';
+  { CbtActs.AttemptFlee's success }
+  gotAwayText: String[10] = 'got away';
+  { its failure }
+  escapeBlockedText: String[20] = 'escape is blocked';
+  { CbtActs.SweepAttack's verb }
+  sweepsText: String[10] = 'sweeps';
+  { CbtActs.CombatTurnUndead's opening }
+  turnsUndeadText: String[20] = 'turns undead...';
+  { an undead turned }
+  turnedText: String[10] = 'is turned';
+  { an undead destroyed }
+  destroyedText: String[20] = 'is destroyed';
+  { a turning that fails }
+  nothingHappensText: String[20] = 'nothing happens';
+  { Camp.CanDoSpellActivity in an anti-magic area }
+  antiMagicMessage: String[30] = 'cannot cast spells in this are';
+  { for a character who cannot act, before the activity }
+  incapacitatedPrefix: String[20] = 'is in no condition t';
+  { the activity: casting }
+  castingSuffix: String[20] = 'cast any spells';
+  { memorizing }
+  memorizingSuffix: String[20] = 'memorize spells';
+  { scribing }
+  scribingSuffix: String[20] = 'scribe any scolls';
+  { Camp.NoncombatCastMenu, for a character with nothing memorized }
+  noSpellsMessage: String[30] = 'has no spells memorized';
+  { Camp.DisplaySpellSlots' row labels: cleric }
+  clericSpellsLabel: String[20] = '    Cleric :';
+  { druid }
+  druidSpellsLabel: String[20] = '     Druid :';
+  { special }
+  specialSpellsLabel: String[20] = '   Special :';
+  { magic-user }
+  magicUserSpellsLabel: String[20] = 'Magic-User :';
+  { bonus }
+  bonusSpellsLabel: String[20] = 'Bonus      :';
+  { Camp.CampMemorizeMenu, for a character with no slots }
+  cannotMemorizeMessage: String[30] = 'cannot memorize any spells';
+  { Camp.CampScribeMenu, for a character with no scrolls to copy }
+  noCopyableMessage: String[30] = 'has no copyable scrolls';
+  { CampScribeMenu, for a spell already known }
+  alreadyKnowsMessage: String[30] = 'you already know that spell';
+  { for a spell already being scribed }
+  alreadyScribingMessage: String[40] = 'you are already scribing that spell';
+  { for a spell the class cannot scribe }
+  cannotScribeMessage: String[30] = 'you can not scribe that spell';
   { the empty prompt a menu shows when it asks nothing }
-  emptyQuery: String[40] = '';
+  emptyQuery: String[2] = '';
   { the title menu's heading }
-  gameTitle: String[40] = 'Death Knights Of Krynn 1.00 ';
+  gameTitle: String[40] = 'Death Knights Of Krynn 1.10 ';
   { Magic.SpellSelection's prompt }
-  chooseSpellQuery: String[40] = 'Choose Spell:';
+  chooseSpellQuery: String[20] = 'Choose Spell:';
   { Magic.SpellFireShield's prompt }
-  flameTypePrompt: String[40] = 'Flame type: ';
+  flameTypePrompt: String[20] = 'Flame type: ';
   { Money.AppraiseMenu's prompt }
-  appraiseQuery: String[40] = 'Appraise : ';
+  appraiseQuery: String[20] = 'Appraise : ';
   { ViewChar.PickCharacter's prompt }
-  pickCharacterText: String[40] = 'Pick Character ';
+  pickCharacterText: String[20] = 'Pick Character ';
   { CharGen.ModifyCharacterMenu's prompt }
-  modifyQuery: String[40] = 'Modify : ';
+  modifyQuery: String[10] = 'Modify : ';
   { CharGen.InitMouseJoystick's prompt }
-  initInputQuery: String[40] = 'Init mouse/joystick: ';
+  initInputQuery: String[30] = 'Init mouse/joystick: ';
   { SaveLoad.SaveChar's question when a save fails }
-  loseCharacterPrompt: String[40] = 'lose character? ';
+  loseCharacterPrompt: String[20] = 'lose character? ';
   { SaveLoad.LoadGame's question for the source game }
-  loadFromWherePrompt: String[40] = 'load from where? ';
+  loadFromWherePrompt: String[20] = 'load from where? ';
   { its prompt for the save letter }
-  loadWhichGamePrompt: String[40] = 'load which game: ';
+  loadWhichGamePrompt: String[20] = 'load which game: ';
   { SaveLoad.SaveGame's prompt for the save letter }
-  saveWhichGamePrompt: String[40] = 'save which game: ';
+  saveWhichGamePrompt: String[20] = 'save which game: ';
   { Magic.SpellSelection's confirmation }
-  spellsOkQuery: String[40] = 'spells OK? ';
+  spellsOkQuery: String[20] = 'spells OK? ';
   { Camp.CampScribeMenu's confirmation }
-  scribeConfirmPrompt: String[40] = 'scribe these spells? ';
+  scribeConfirmPrompt: String[30] = 'scribe these spells? ';
   { Camp.PartyOrderMenu's prompt }
-  orderQuery: String[40] = 'party order ';
+  orderQuery: String[20] = 'party order ';
   { the speed menus' prompt, before the speed }
-  gameSpeedLabel: String[40] = 'game speed: ';
+  gameSpeedLabel: String[20] = 'game speed: ';
   { the aim menu's prompt }
-  aimPrompt: String[40] = 'aim: ';
+  aimPrompt: String[10] = 'aim: ';
   { CbtActs.ManualAimCursor's hint }
-  cursorPrompt: String[40] = '(use cursor keys) ';
+  cursorPrompt: String[20] = '(use cursor keys) ';
   { Combat.EndOfRound's question once no enemy is in sight }
-  continueBattle: String[40] = 'continue battle? ';
+  continueBattle: String[20] = 'continue battle? ';
   { Combat.MoveMenu's prompt, before the moves left }
-  moveQueryLabel: String[40] = 'move/attack, move left = ';
+  moveQueryLabel: String[30] = 'move/attack, move left = ';
   { the item list's prompt in shop and loot }
-  itemsQuery: String[40] = 'items : ';
+  itemsQuery: String[10] = 'items : ';
   { PostCbt.LootTakeMenu's prompt }
-  takeQuery: String[40] = 'take: ';
+  takeQuery: String[10] = 'take: ';
+  { CombatAi.AiMoveStep's prompt for a party member under its control }
+  moveAttackPrompt: String[30] = 'Move/Attack, Move Left = ';
+  { Magic.NoncombatCastTargetMenu's prompt }
+  spellTargetPrompt: String[20] = 'cast spell on whom';
+  { the copy-protection checks' answer prompt }
+  enterAnswerPrompt: String[10] = 'Enter ';
+  { Magic.PrintCastSpellMsg's label }
+  spellLabel: String[10] = 'Spell:';
   { the empty choice string a menu shows when it offers nothing }
-  emptyMenu: String[40] = '';
+  emptyMenu: String[2] = '';
   { the title menu's choices }
-  playDemoMenu: String[40] = 'Play Demo';
+  playDemoMenu: String[10] = 'Play Demo';
   { MenuCore.YesNoMenu's choices }
-  yesNoOptions: String[40] = 'Yes No';
+  yesNoOptions: String[10] = 'Yes No';
   { the one-word menu over a list to pick from }
-  selectMenuText: String[40] = 'Select';
+  selectMenuText: String[10] = 'Select';
   { Magic.SpellSelection's word when casting }
-  castMenu: String[40] = 'Cast';
+  castMenu: String[10] = 'Cast';
   { when memorizing }
-  memorizeMenu: String[40] = 'Memorize';
+  memorizeMenu: String[10] = 'Memorize';
   { when keeping }
-  keepMenu: String[40] = 'Keep';
+  keepMenu: String[10] = 'Keep';
   { when scribing }
-  scribeMenu: String[40] = 'Scribe';
+  scribeMenu: String[10] = 'Scribe';
   { when learning }
-  learnMenu: String[40] = 'Learn';
+  learnMenu: String[10] = 'Learn';
   { Magic.SpellFireShield's choices }
-  flameTypeMenu: String[40] = 'Hot Cold';
+  flameTypeMenu: String[10] = 'Hot Cold';
   { Money.AppraiseMenu's choices }
-  appraiseOptions: String[40] = 'Gems Jewelry Exit';
+  appraiseOptions: String[20] = 'Gems Jewelry Exit';
   { its choices over a valuation }
-  sellMenu: String[40] = 'Sell Keep';
+  sellMenu: String[20] = 'Sell Keep';
   { GameTime.CampRestMenu's choices }
   restMenu: String[40] = 'Rest Days Hours Mins Add Subtract Exit';
   { ViewChar.ViewCharMenu's choices }
@@ -764,55 +1208,68 @@ const
   { ViewChar.UseItemMenu's choices }
   itemsMenu: String[80] = 'Ready Use Trade Deposit Drop Halve Join Sell Id Exit';
   { CharGen.ModifyCharacterMenu's choices }
-  modifyMenu: String[40] = 'Add Subtract Keep Exit';
+  modifyMenu: String[30] = 'Add Subtract Keep Exit';
   { the source-game choices when adding or loading }
-  sourceGameMenu: String[40] = 'Death Champions Exit';
+  sourceGameMenu: String[30] = 'Death Champions Exit';
   { CharGen.AddCharacterMenu's choice }
-  addMenu: String[40] = 'Add';
+  addMenu: String[10] = 'Add';
   { CharGen.KnightPromotionMenu's choices }
-  changeExitMenu: String[40] = 'Change Exit';
+  changeExitMenu: String[20] = 'Change Exit';
+  { CharGen.InitMouseJoystick's choices: mouse on }
+  mouseOn: String[10] = 'mouse on';
+  { mouse off }
+  mouseOff: String[10] = 'mouse off';
+  { joystick on }
+  joystickOn: String[20] = 'joystick on';
+  { joystick off }
+  joystickOff: String[20] = 'joystick off';
+  { neither }
+  disableBoth: String[20] = 'disable both';
   { SaveLoad.SaveChar's choices when a save fails }
-  tryAnotherDiskMenu: String[40] = 'Ok Try another disk';
+  tryAnotherDiskMenu: String[20] = 'Ok Try another disk';
   { the save letters SaveLoad offers }
-  saveSlotMenu: String[40] = 'A B C D E F G H I J';
+  saveSlotMenu: String[20] = 'A B C D E F G H I J';
   { Camp.PartyOrderMenu's choices }
-  orderMenu: String[40] = 'Select Place Exit';
+  orderMenu: String[20] = 'Select Place Exit';
   { the speed menus' choices }
-  speedChoices: String[40] = 'Faster Slower Exit';
+  speedChoices: String[20] = 'Faster Slower Exit';
   { Explore.MapMainMenu's choices }
   dungeonMenu: String[40] = 'Move Area Cast View Encamp Search Look';
   { the extra choice MapMainMenu adds }
-  exitMenu: String[40] = 'Exit';
+  exitMenu: String[10] = 'Exit';
   { Combat.CombatMenu's choices }
   commandChoices: String[80] = 'Move Aim Use Cast Turn Guard Quick@Delay Bandage Yell View Speed End';
   { Combat.MoveMenu's choice }
-  moveChoices: String[40] = 'Done';
+  moveChoices: String[10] = 'Done';
   { CbtActs.AimTargetMenu's choices }
   aimMenuOptions: String[40] = 'Next Prev Manual Target Center Exit';
   { CbtActs.ManualAimCursor's choices }
-  cursorMenu: String[40] = 'Target Exit';
+  cursorMenu: String[20] = 'Target Exit';
   { Shop.ShopBuyItemSelection's choice }
-  buyMenu: String[40] = 'Buy';
+  buyMenu: String[10] = 'Buy';
   { Shop.ShopMainMenu's choices }
   shopMenu: String[40] = 'Buy View Take Pool Share Appraise Exit';
   { the blanks ShopBuyItemSelection clears a line with }
   spaces30: String[30] = '                              ';
   { PostCbt.LootTakeItemSelection's choice }
-  takeMenu: String[40] = 'Take';
+  takeMenu: String[10] = 'Take';
   { PostCbt.LootTakeMenu's choices }
-  moneyItemsMenu: String[40] = 'Money Items Exit';
+  moneyItemsMenu: String[20] = 'Money Items Exit';
   { PostCbt.LootMenu's choices }
   treasureMenu: String[40] = 'View Take Pool Share Detect Exit';
   { Temple.HealMenu's choice }
-  healOptions: String[40] = 'Heal';
+  healOptions: String[10] = 'Heal';
   { Temple.TempleMainMenu's choices }
   templeMenu: String[40] = 'Heal View Take Pool Share Appraise Exit';
   { Vault.PoolVault's choices }
   vaultMenu: String[40] = 'View Take Pool Money Items Exit';
-  { by menu state }
+  { CharGen.CustomizeIcon's choices, by menu state }
   iconMenus: array[1..5] of String[45] = (
-    'Parts 1st-color 2nd-color Size Exit', 'Head Weapon Exit', 'Weapon Body Hair Face Shield Arm Leg Exit',
-    'Small Large Keep Exit', 'Next Prev Keep Exit');
+    'Parts 1st-color 2nd-color Size Exit',
+    'Head Weapon Exit',
+    'Weapon Body Hair Face Shield Arm Leg Exit',
+    'Small Large Keep Exit',
+    'Next Prev Keep Exit');
   { Camp.CampMainMenu's choices }
   campMenu: String[40] = 'Save View Magic Rest Alter Fix Exit';
   { Camp.CampMagicMenu's choices }
@@ -821,32 +1278,33 @@ const
   alterMenu: String[40] = 'Order Drop Speed Icon Level Exit';
   { Camp.CampDifficultyMenu's choices }
   levelMenu: String[40] = 'Novice Squire Veteran Adept Champion';
+  { the spell list's level headings, by spell level }
+  spellLevelLabels: array[0..9] of String[10] = (
+    'Special', '1st Level', '2nd Level', '3rd Level', '4th Level', '5th Level',
+    '6th Level', '7th Level', '8th Level', '9th Level');
   { MenuCore.MenuVertical's paging choices: next page }
-  menuNextText: String[40] = ' Next';
+  menuNextText: String[10] = ' Next';
   { previous page }
-  menuPrevText: String[40] = ' Prev';
+  menuPrevText: String[10] = ' Prev';
   { leave }
-  menuExitText: String[40] = ' Exit';
-  { by TItem.nameIds }
+  menuExitText: String[10] = ' Exit';
+  { the words an item's name is built from, by TItem.nameIds; ModeInit takes the debug password from one }
   itemNameParts: array[1..125] of String[20] = (
-    'Battle Axe', 'Hand Axe', 'Club', 'Dagger', 'Dart', 'Hammer', 'Javelin', 'Mace', 'Morning Star', 'Military Pick',
-    'Awl Pike',
-    'Quarrel', 'Scimitar', 'Spear', 'Quarter Staff', 'Bastard Sword', 'Broad Sword', 'Long Sword', 'Short Sword',
-    'Two-Handed Sword', 'Trident', 'Composite Long Bow', 'Composite Short Bow', 'Long Bow', 'Short Bow', 'Fine',
-    'Light Crossbow', 'Sling', 'Staff', 'Arrow', 'Leather', 'Ring', 'Scale', 'Chain', 'Banded', 'Plate', 'Shield',
-    'Cler', 'Scroll',
-    'MU Scroll', 'Helm', 'Belt', 'Robe', 'Cloak', 'Boots', 'Ring', 'Mail', 'Armor', 'Of Prot', 'Bracers', 'Wand',
-    'Amulet', 'Potion',
-    'Holy Water', 'Ruby', 'Boulder', 'Dragon Breath', 'Displacement', 'Bag', 'Drow', 'Elven Chain', 'Ice Storm',
-    'Saphire',
-    'Emerald', 'Wizardry', 'Hornet''s Nest', 'Hoopak', 'Solamnic Plate', 'Dragonlance', 'Flail', 'Halberd', 'Gauntlets',
-    'Periapt', 'Proof vs Poison', 'Elixir Of Youth', 'Eyes Of Charming', 'Disruption', 'Ogre Power', 'Girdle',
-    'Giant Strength', 'Mirror', 'Necklace', 'Dragon', 'vs Reptiles', 'Frost Brand', 'Berserker', 'Diamond', 'Lightning',
-    'Fireballs', 'of', 'Vulnerability', 'Speed', 'Silver', 'Extra', 'Healing', 'Olin''s', 'Fear', 'Magic Missiles',
-    'Missiles',
-    '1 Spell', '2 Spells', '3 Spell', 'Paralyzation', 'Invisibility', 'Footman''s', 'AC 10', 'AC 6', 'AC 4', 'AC 3',
-    'AC 2', '+1',
-    '+2', '+3', '+4', '+5', '-1', '-2', '-3', 'White', 'Red', 'Spiritual', 'Gem', 'Jewelry', 'Blank', 'Item');
+    'Battle Axe', 'Hand Axe', 'Club', 'Dagger', 'Dart', 'Hammer', 'Javelin', 'Mace', 'Morning Star',
+    'Military Pick', 'Awl Pike', 'Quarrel', 'Scimitar', 'Spear', 'Quarter Staff', 'Bastard Sword',
+    'Broad Sword', 'Long Sword', 'Short Sword', 'Two-Handed Sword', 'Trident', 'Composite Long Bow',
+    'Composite Short Bow', 'Long Bow', 'Short Bow', 'Fine', 'Light Crossbow', 'Sling', 'Staff', 'Arrow',
+    'Leather', 'Ring', 'Scale', 'Chain', 'Banded', 'Plate', 'Shield', 'Cler', 'Scroll', 'MU Scroll', 'Helm',
+    'Belt', 'Robe', 'Cloak', 'Boots', 'Ring', 'Mail', 'Armor', 'Of Prot', 'Bracers', 'Wand', 'Amulet',
+    'Potion', 'Holy Water', 'Ruby', 'Boulder', 'Dragon Breath', 'Displacement', 'Bag', 'Drow',
+    'Elven Chain', 'Ice Storm', 'Saphire', 'Emerald', 'Wizardry', 'Hornet''s Nest', 'Hoopak',
+    'Solamnic Plate', 'Dragonlance', 'Flail', 'Halberd', 'Gauntlets', 'Periapt', 'Proof vs Poison',
+    'Elixir Of Youth', 'Eyes Of Charming', 'Disruption', 'Ogre Power', 'Girdle', 'Giant Strength',
+    'Mirror', 'Necklace', 'Dragon', 'vs Reptiles', 'Frost Brand', 'Berserker', 'Diamond', 'Lightning',
+    'Fireballs', 'of', 'Vulnerability', 'Speed', 'Silver', 'Extra', 'Healing', 'Olin''s', 'Fear',
+    'Magic Missiles', 'Missiles', '1 Spell', '2 Spells', '3 Spell', 'Paralyzation', 'Invisibility',
+    'Footman''s', 'AC 10', 'AC 6', 'AC 4', 'AC 3', 'AC 2', '+1', '+2', '+3', '+4', '+5', '-1', '-2', '-3',
+    'White', 'Red', 'Spiritual', 'Gem', 'Jewelry', 'Blank', 'Item');
   { The BIOS video service and its function numbers. The interrupt every video call goes through }
   videoInterrupt: Byte = $10;
   { set the video mode }
@@ -865,7 +1323,7 @@ const
   egaVideoMode: Byte = $0D;
   { the Tandy 320x200 sixteen-color mode }
   tandyVideoMode: Byte = $09;
-  { the input status port $03DA and its retrace bit $08 }
+  { the input status port $03DA and its retrace bit $08; never read }
   unreadRetraceCheck: array[0..3] of Byte = (
     $00, $DA, $03, $08);
   { The EGA sequencer and graphics controller. The sequencer's index port }
@@ -894,7 +1352,7 @@ const
   colorDontCareRegister: Byte = $07;
   { the bit mask }
   bitMaskRegister: Byte = $08;
-  { the data-rotate functions: replace, AND, OR, XOR }
+  { the data-rotate functions: replace, AND, OR, XOR; never read }
   unreadRotateFunctions: array[0..3] of Byte = (
     $00, $08, $10, $18);
   { the mode register's write mode 0, the CPU's data through the bit mask }
@@ -908,10 +1366,12 @@ const
   { never read }
   readMode0Tail: array[0..1] of Byte = (
     11, 0);
-  { CharHlp.PrintMiscInfo's compass label by facing, and Pathing's step by (dy, dx) }
-  directionLegend: Types.TDirectionLegend = (
-    names: ('N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW');
-    matrix: ((7, 0, 1), (6, 8, 2), (5, 4, 3)));
+  { CharHlp.PrintMiscInfo's compass label, by facing }
+  directionNames: array[0..7] of String[2] = (
+    'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW');
+  { Pathing's step by (dy, dx) }
+  directionMatrix: array[0..2, 0..2] of Byte = (
+    (7, 0, 1), (6, 8, 2), (5, 4, 3));
   { never read }
   unreadPixelTable: array[0..15] of Byte = (
     $00, $A0, $00, $A2, $08, $04, $02, $01, $00, $00, $55, $55, $AA, $AA, $FF, $FF);
@@ -923,7 +1383,7 @@ const
     $C000, $3000, $0C00, $0300, $00C0, $0030, $000C, $0003);
 
 { Picture drawing: the EGA plane bits, the CGA pixel values, the drawing modes and header sizes Blit reads, the color
-  maps, the sound cues, the disk prompts, the text renderer's settings, and the combat grid's fixed tables. }
+  maps, the sound cues, the disk prompts, and the text renderer's settings. }
 const
   { the map mask bit of EGA plane 0..3 }
   egaPlaneBits: array[0..3] of Byte = (
@@ -998,10 +1458,9 @@ const
   loadingMessage: String[21] = 'Loading...Please Wait';
   { while the game saves }
   savingMessage: String[20] = 'Saving...Please Wait';
-  { indexed by DaxIo's diskNumber, 1..5 }
+  { the disk prompt OpenWithRetry shows, indexed by DaxIo's diskNumber, 1..5; the last two both ask for disk 5 }
   insertDiskMessages: array[1..5] of String[29] = (
     'Insert disk 2 in drive ', 'Insert disk 3 in drive ', 'Insert disk 4 in drive ',
-    { the last two both ask for disk 5 }
     'Insert disk 5 in drive ', 'Insert disk 5 in drive ');
   { never read }
   asciiFlagLead: Byte = 0;
@@ -1025,7 +1484,7 @@ const
   { never read }
   unreadQuad: array[0..3] of Byte = (
     3, 46, 36, 56);
-  { the first and last symbol number of each 8x8 set, Sym8x8.Put8x8Sym }
+  { the first symbol number of each 8x8 set, which Sym8x8.Put8x8Sym subtracts to index within the set }
   symbolSetFirst: array[0..4] of Word = (
     0, 46, 116, 186, 256);
   { the last symbol number of each set }
@@ -1034,54 +1493,55 @@ const
   { never read }
   symbolSetLastTail: array[0..3] of Byte = (
     40, 64, 1, 0);
-  { The combat grid's fixed tables: a direction 0..8 to a cell step, 8 the center; the cost, clearance, blocking class
-    and code of each tile; the sub-tile offsets by icon size; and the direction passed to Pathing.BuildTargetList when a
-    target may lie anywhere. }
-  combatTables: Types.TCombatTables = (
-    directionX: (0, 1, 1, 1, 0, -1, -1, -1, 0);
-    directionY: (-1, -1, 0, 1, 1, 1, 0, -1, 0);
-    terrain: (
-      (cost: 255; clearance: 1; blocking: 2; code: 0), (cost: 255; clearance: 1; blocking: 2; code: 1),
-      (cost: 255; clearance: 1; blocking: 2; code: 2), (cost: 255; clearance: 1; blocking: 2; code: 3),
-      (cost: 1; clearance: 1; blocking: 0; code: 4), (cost: 255; clearance: 1; blocking: 2; code: 5),
-      (cost: 255; clearance: 1; blocking: 2; code: 6), (cost: 255; clearance: 1; blocking: 2; code: 7),
-      (cost: 1; clearance: 1; blocking: 0; code: 8), (cost: 255; clearance: 1; blocking: 2; code: 9),
-      (cost: 1; clearance: 1; blocking: 0; code: 10), (cost: 255; clearance: 1; blocking: 2; code: 11),
-      (cost: 1; clearance: 1; blocking: 0; code: 12), (cost: 255; clearance: 1; blocking: 2; code: 13),
-      (cost: 1; clearance: 1; blocking: 0; code: 14), (cost: 255; clearance: 1; blocking: 2; code: 15),
-      (cost: 1; clearance: 1; blocking: 0; code: 16), (cost: 255; clearance: 1; blocking: 2; code: 17),
-      (cost: 255; clearance: 1; blocking: 2; code: 18), (cost: 255; clearance: 1; blocking: 2; code: 19),
-      (cost: 255; clearance: 1; blocking: 2; code: 20), (cost: 255; clearance: 1; blocking: 2; code: 21),
-      (cost: 1; clearance: 1; blocking: 0; code: 22), (cost: 1; clearance: 1; blocking: 0; code: 23),
-      (cost: 255; clearance: 1; blocking: 2; code: 24), (cost: 2; clearance: 2; blocking: 0; code: 38),
-      (cost: 1; clearance: 1; blocking: 0; code: 39), (cost: 1; clearance: 1; blocking: 0; code: 14),
-      (cost: 1; clearance: 1; blocking: 0; code: 13), (cost: 1; clearance: 1; blocking: 0; code: 20),
-      (cost: 1; clearance: 1; blocking: 0; code: 21), (cost: 255; clearance: 1; blocking: 2; code: 0),
-      (cost: 255; clearance: 1; blocking: 2; code: 1), (cost: 255; clearance: 1; blocking: 2; code: 2),
-      (cost: 255; clearance: 1; blocking: 2; code: 3), (cost: 255; clearance: 1; blocking: 2; code: 4),
-      (cost: 1; clearance: 1; blocking: 0; code: 5), (cost: 1; clearance: 1; blocking: 0; code: 6),
-      (cost: 1; clearance: 1; blocking: 0; code: 7), (cost: 1; clearance: 1; blocking: 0; code: 8),
-      (cost: 1; clearance: 1; blocking: 0; code: 9), (cost: 255; clearance: 1; blocking: 2; code: 10),
-      (cost: 255; clearance: 1; blocking: 2; code: 11), (cost: 2; clearance: 1; blocking: 0; code: 12),
-      (cost: 1; clearance: 1; blocking: 0; code: 13), (cost: 1; clearance: 1; blocking: 0; code: 14),
-      (cost: 1; clearance: 1; blocking: 0; code: 15), (cost: 1; clearance: 1; blocking: 0; code: 16),
-      (cost: 1; clearance: 1; blocking: 0; code: 17), (cost: 2; clearance: 1; blocking: 0; code: 18),
-      (cost: 2; clearance: 1; blocking: 0; code: 19), (cost: 1; clearance: 1; blocking: 0; code: 20),
-      (cost: 1; clearance: 1; blocking: 0; code: 21), (cost: 1; clearance: 1; blocking: 0; code: 22),
-      (cost: 255; clearance: 1; blocking: 0; code: 23), (cost: 255; clearance: 1; blocking: 0; code: 24),
-      (cost: 255; clearance: 1; blocking: 0; code: 25), (cost: 1; clearance: 1; blocking: 0; code: 26),
-      (cost: 1; clearance: 1; blocking: 0; code: 27), (cost: 1; clearance: 1; blocking: 0; code: 28),
-      (cost: 1; clearance: 0; blocking: 0; code: 29), (cost: 1; clearance: 0; blocking: 0; code: 30),
-      (cost: 255; clearance: 0; blocking: 0; code: 31), (cost: 255; clearance: 1; blocking: 0; code: 32),
-      (cost: 2; clearance: 1; blocking: 0; code: 33), (cost: 1; clearance: 1; blocking: 0; code: 34),
-      (cost: 255; clearance: 1; blocking: 0; code: 35), (cost: 1; clearance: 1; blocking: 0; code: 36),
-      (cost: 1; clearance: 1; blocking: 0; code: 37));
-    iconDelta: (
-      ((dx: 0; dy: 0), (dx: -1; dy: -1), (dx: -1; dy: -1), (dx: -1; dy: -1)),
-      ((dx: 0; dy: 0), (dx: 0; dy: 1), (dx: -1; dy: -1), (dx: -1; dy: -1)),
-      ((dx: 0; dy: 0), (dx: 1; dy: 0), (dx: -1; dy: -1), (dx: -1; dy: -1)),
-      ((dx: 0; dy: 0), (dx: 1; dy: 0), (dx: 0; dy: 1), (dx: 1; dy: 1)));
-    anyDirection: 255);
+  { The combat grid's fixed tables. A direction 0..8 to a column step, 8 the center }
+  directionX: array[0..8] of ShortInt = (0, 1, 1, 1, 0, -1, -1, -1, 0);
+  { a direction 0..8 to a row step }
+  directionY: array[0..8] of ShortInt = (-1, -1, 0, 1, 1, 1, 0, -1, 0);
+  { by tile code: movement cost, clearance, blocking class and code }
+  terrain: array[1..69] of Types.TTerrain = (
+    (cost: 255; clearance: 1; blocking: 2; code: 0), (cost: 255; clearance: 1; blocking: 2; code: 1),
+    (cost: 255; clearance: 1; blocking: 2; code: 2), (cost: 255; clearance: 1; blocking: 2; code: 3),
+    (cost: 1; clearance: 1; blocking: 0; code: 4), (cost: 255; clearance: 1; blocking: 2; code: 5),
+    (cost: 255; clearance: 1; blocking: 2; code: 6), (cost: 255; clearance: 1; blocking: 2; code: 7),
+    (cost: 1; clearance: 1; blocking: 0; code: 8), (cost: 255; clearance: 1; blocking: 2; code: 9),
+    (cost: 1; clearance: 1; blocking: 0; code: 10), (cost: 255; clearance: 1; blocking: 2; code: 11),
+    (cost: 1; clearance: 1; blocking: 0; code: 12), (cost: 255; clearance: 1; blocking: 2; code: 13),
+    (cost: 1; clearance: 1; blocking: 0; code: 14), (cost: 255; clearance: 1; blocking: 2; code: 15),
+    (cost: 1; clearance: 1; blocking: 0; code: 16), (cost: 255; clearance: 1; blocking: 2; code: 17),
+    (cost: 255; clearance: 1; blocking: 2; code: 18), (cost: 255; clearance: 1; blocking: 2; code: 19),
+    (cost: 255; clearance: 1; blocking: 2; code: 20), (cost: 255; clearance: 1; blocking: 2; code: 21),
+    (cost: 1; clearance: 1; blocking: 0; code: 22), (cost: 1; clearance: 1; blocking: 0; code: 23),
+    (cost: 255; clearance: 1; blocking: 2; code: 24), (cost: 2; clearance: 2; blocking: 0; code: 38),
+    (cost: 1; clearance: 1; blocking: 0; code: 39), (cost: 1; clearance: 1; blocking: 0; code: 14),
+    (cost: 1; clearance: 1; blocking: 0; code: 13), (cost: 1; clearance: 1; blocking: 0; code: 20),
+    (cost: 1; clearance: 1; blocking: 0; code: 21), (cost: 255; clearance: 1; blocking: 2; code: 0),
+    (cost: 255; clearance: 1; blocking: 2; code: 1), (cost: 255; clearance: 1; blocking: 2; code: 2),
+    (cost: 255; clearance: 1; blocking: 2; code: 3), (cost: 255; clearance: 1; blocking: 2; code: 4),
+    (cost: 1; clearance: 1; blocking: 0; code: 5), (cost: 1; clearance: 1; blocking: 0; code: 6),
+    (cost: 1; clearance: 1; blocking: 0; code: 7), (cost: 1; clearance: 1; blocking: 0; code: 8),
+    (cost: 1; clearance: 1; blocking: 0; code: 9), (cost: 255; clearance: 1; blocking: 2; code: 10),
+    (cost: 255; clearance: 1; blocking: 2; code: 11), (cost: 2; clearance: 1; blocking: 0; code: 12),
+    (cost: 1; clearance: 1; blocking: 0; code: 13), (cost: 1; clearance: 1; blocking: 0; code: 14),
+    (cost: 1; clearance: 1; blocking: 0; code: 15), (cost: 1; clearance: 1; blocking: 0; code: 16),
+    (cost: 1; clearance: 1; blocking: 0; code: 17), (cost: 2; clearance: 1; blocking: 0; code: 18),
+    (cost: 2; clearance: 1; blocking: 0; code: 19), (cost: 1; clearance: 1; blocking: 0; code: 20),
+    (cost: 1; clearance: 1; blocking: 0; code: 21), (cost: 1; clearance: 1; blocking: 0; code: 22),
+    (cost: 255; clearance: 1; blocking: 0; code: 23), (cost: 255; clearance: 1; blocking: 0; code: 24),
+    (cost: 255; clearance: 1; blocking: 0; code: 25), (cost: 1; clearance: 1; blocking: 0; code: 26),
+    (cost: 1; clearance: 1; blocking: 0; code: 27), (cost: 1; clearance: 1; blocking: 0; code: 28),
+    (cost: 1; clearance: 0; blocking: 0; code: 29), (cost: 1; clearance: 0; blocking: 0; code: 30),
+    (cost: 255; clearance: 0; blocking: 0; code: 31), (cost: 255; clearance: 1; blocking: 0; code: 32),
+    (cost: 2; clearance: 1; blocking: 0; code: 33), (cost: 1; clearance: 1; blocking: 0; code: 34),
+    (cost: 255; clearance: 1; blocking: 0; code: 35), (cost: 1; clearance: 1; blocking: 0; code: 36),
+    (cost: 1; clearance: 1; blocking: 0; code: 37));
+  { sub-tile offsets by icon size, in each of four directions }
+  iconDelta: array[1..4, 0..3] of Types.TIconDelta = (
+    ((dx: 0; dy: 0), (dx: -1; dy: -1), (dx: -1; dy: -1), (dx: -1; dy: -1)),
+    ((dx: 0; dy: 0), (dx: 0; dy: 1), (dx: -1; dy: -1), (dx: -1; dy: -1)),
+    ((dx: 0; dy: 0), (dx: 1; dy: 0), (dx: -1; dy: -1), (dx: -1; dy: -1)),
+    ((dx: 0; dy: 0), (dx: 1; dy: 0), (dx: 0; dy: 1), (dx: 1; dy: 1)));
+  { the direction passed to Pathing.BuildTargetList when a target may lie anywhere }
+  anyDirection: Byte = 255;
 
 { The effect system's id lists and status text, the party files' extensions, the menu's answer codes and key maps, and
   the order an area effect paints its cells. }
@@ -1089,7 +1549,7 @@ const
   { effect ids that leave a character helpless; CharHlp checks them }
   helplessEffects: array[1..3] of Byte = (
     31, 52, 53);
-  { effect ids that end with the fight }
+  { effect ids that end with the fight; PostCbt clears them }
   clearEffects: array[1..19] of Byte = (
     3, 6, 11, 13, 21, 23, 27, 30, 35, 40, 52, 53, 57, 31, 77, 107, 108, 111, 118);
   { the status lines EffHndlr and Magic build before an effect name }
@@ -1108,7 +1568,7 @@ const
   gainsText: String[6] = 'gains ';
   { never shown }
   protectedFromText: String[15] = 'Protected from ';
-  { by effect id }
+  { the name of each effect id, which status lines and the character sheet show }
   effectNames: array[1..120] of String[37] = (
     'Blessed', '', 'Harrassed by Snakes', 'Dispelling Evil', 'Detecting Magic', 'Entangled', '', 'Protected from Evil',
     'Wearing Macical Boots', 'Resistant to Cold', 'Charmed', 'Enlarged', 'Magically Highlighted', 'Friendly',
@@ -1147,7 +1607,7 @@ const
   { '1'..'9' as the arrow scan codes, which MenuCore and CharGen turn into a direction }
   digitKeys: array[0..8] of Byte = (
     79, 80, 81, 75, 32, 77, 71, 72, 73);
-  { the area map's cell, by row and column, to a direction key }
+  { the area map's cell, by row and column, to the direction key a click there gives }
   directionKeys: array[3..13, 3..13] of Byte = (
     (72, 72, 72, 72, 72, 72, 72, 72, 72, 72, 72),
     (75, 72, 72, 72, 72, 72, 72, 72, 72, 72, 77),
@@ -1160,12 +1620,12 @@ const
     (75, 75, 80, 80, 80, 80, 80, 80, 80, 77, 77),
     (75, 80, 80, 80, 80, 80, 80, 80, 80, 80, 77),
     (80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80));
-  { a cloud's cells: center, then clockwise from east }
+  { a cloud's cells as directions: center, then clockwise from east }
   patchDir: array[1..9] of Byte = (
     8, 2, 3, 4, 5, 6, 7, 0, 1);
 
 { The spells, the calendar, the save set's other file names, the class, race, progression and saving throw tables, the
-  aiming modes and the Tandy heap reserve. }
+  aiming modes, the copy-protection question's fragments, and the input devices' tables. }
 const
   { by spell id; some ids have no name }
   spellNames: array[1..114] of String[40] = (
@@ -1549,9 +2009,8 @@ const
     { 114 Power Word Blind }
     (castClass: 3; level: 8; range: 0; rangePerLevel: 1; duration: 0; durationPerLevel: 0; targeting: 10; campTarget: 0;
      saveEffect: 0; saveType: 4; effectId: 0; combatOk: 1; castingTime: 1; aiPriority: 3; hostile: 1; hostileTail: 0));
-  { how many of unit i make one of unit i+1 }
+  { how many of unit i make one of unit i+1: round, minute, turn, hour, day, month, year }
   clockUnitScale: Types.TClock = (
-    { round, minute, turn, hour, day, month, year }
     10, 10, 6, 24, 30, 12, 256);
   { the bit a zone square's search flags carry once the party has searched it; the second byte is never read }
   searchMask: array[0..1] of Byte = (
@@ -1570,7 +2029,7 @@ const
   saveGameStem: String[6] = 'savgam';
   { never shown }
   putSaveDiskPrefix: String[17] = 'Put save disk in ';
-  { by class, then level 0..18 }
+  { by class, then level 0..18; ClassCal and CharGen take the best entry over a character's classes }
   thac0Table: array[0..7, 0..18] of Byte = (
     (40, 40, 40, 40, 42, 42, 42, 44, 44, 44, 46, 46, 46, 48, 48, 48, 50, 50, 50),
     (40, 40, 40, 40, 42, 42, 42, 44, 44, 44, 46, 46, 46, 48, 48, 48, 50, 50, 50),
@@ -1585,7 +2044,7 @@ const
     $02, $20, $08, $40, $80, $01, $04, $10);
   { ends FixMain's main loop and CharGen's party menu }
   gameDone: Byte = 0;
-  { by class: its bit in TZone1.trainMask }
+  { by class: its bit in TZone1's train mask }
   trainingClassBits: array[0..7] of Byte = (
     $02, $02, $08, $10, $20, $01, $04, $10);
   { never read }
@@ -1710,8 +2169,7 @@ const
   constitutionHitPointTable: array[3..25] of ShortInt = (
     -2, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2);
   { by class: experience per level from 2, and the slots it adds }
-  classProgression: array[0..10] of Types.TClassProgression =
-      (
+  classProgression: array[0..10] of Types.TClassProgression = (
     (experience: (
     4000, 7500, 15250, 25000, 40000, 90000, 160000, 250000, 500000, 750000, 1000000, 1250000, 1500000, -1, -1, -1, -1);
      spellSlots: (
@@ -1903,11 +2361,6 @@ const
   spellAimMode: Byte = 0;
   { the mode Combat passes when aiming an attack }
   attackAimMode: Byte = 1;
-  { the Tandy graphics reserve in paragraphs; GameBoot stores it shifted left 3 in the word after FreePtr }
-  tandyHeapReserve: Byte = 10;
-
-{ The copy-protection question's fragments and the input devices' tables. }
-const
   { The copy-protection question's fragments, each with its own spaces. The question's start }
   promptWord: String[16] = ' what is word # ';
   { CopyProtection's journal form }

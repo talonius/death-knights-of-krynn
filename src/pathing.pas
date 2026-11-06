@@ -7,7 +7,7 @@
 {$S-}
 unit Pathing;
 interface
-uses C_Dir, Types, CbtMap, GDConsts, GDVars;
+uses C_Dir, CbtMap, GDConsts, GDVars, Types;
 
 { Gives the sign of a number.
   @param(v The number.)
@@ -154,7 +154,7 @@ begin
         NextPathStep := True;
       end;
     end;
-    step := GDConsts.directionLegend.matrix[dyi, dxi];
+    step := GDConsts.directionMatrix[dyi, dxi];
   end;
 end;
 
@@ -174,18 +174,18 @@ begin
   walk.ey := ty;
   Pathing.PathFind(walk);
   meter.sx := 0;
-  meter.sy := GDConsts.combatTables.terrain[Types.PArena(view)^.cells[y, x]].clearance;
+  meter.sy := GDConsts.terrain[Types.PArena(view)^.cells[y, x]].clearance;
   if walk.adx > walk.ady then
     meter.ex := walk.adx
   else
     meter.ex := walk.ady;
-  meter.ey := GDConsts.combatTables.terrain[Types.PArena(view)^.cells[y, x]].clearance;
+  meter.ey := GDConsts.terrain[Types.PArena(view)^.cells[y, x]].clearance;
   Pathing.PathFind(meter);
   done := False;
   repeat
-    if ((Types.PArena(view)^.distMode = 0) and
-        (GDConsts.combatTables.terrain[Types.PArena(view)^.cells[walk.cy, walk.cx]].blocking > meter.cy)) or
-          (walk.dist > maxDist) then begin
+    if ((Types.PArena(view)^.distMode = 0) and (GDConsts.terrain[Types.PArena(view)^.cells[walk.cy,
+        walk.cx]].blocking > meter.cy)) or
+        (walk.dist > maxDist) then begin
       tx := walk.cx;
       ty := walk.cy;
       dist := walk.dist;
@@ -209,10 +209,10 @@ begin
     IsDirToward := False;
     Exit;
   end;
-  if dir = GDConsts.combatTables.anyDirection then
+  if dir = GDConsts.anyDirection then
     dir := C_Dir.CENTER;
-  nx := x + GDConsts.combatTables.directionX[dir];
-  ny := y + GDConsts.combatTables.directionY[dir];
+  nx := x + GDConsts.directionX[dir];
+  ny := y + GDConsts.directionY[dir];
   if ((x = tx) and (y = ty)) or ((nx = tx) and (ny = ty)) then begin
     IsDirToward := True;
     Exit;

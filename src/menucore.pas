@@ -4,8 +4,8 @@
 {$F+,O+,S-,R-,V-,B-,I-}
 unit MenuCore;
 interface
-uses C_Ifc, Crt, C_Keys, GDConsts, GDVars, Types, TextRend, Mouse, Border, CbtMap, GameIo,
-  Joystick, Portrait;
+uses C_Ifc, Crt, C_Keys, GDConsts, GDVars, GameIo, TextRend, Mouse, Border, Portrait, Joystick,
+  CbtMap, Types;
 type
   TMenuSpan = record
     first: Byte;
@@ -17,11 +17,6 @@ type
   @param(head The list.)
   @returns(The row; nil past the list's end.) }
 function MenuRowAt(index: Word; head: Types.PMenuRow): Types.PMenuRow;
-
-{ Counts the rows of a menu-row list.
-  @param(head The list.)
-  @returns(The number of rows.) }
-function MenuRowCount(head: Types.PMenuRow): Word;
 
 { Enables menu word ordinal as the next choice and counts it.
   @param(ordinal The menu word to enable.)
@@ -104,6 +99,9 @@ begin
     MenuRowAt := nil
 end;
 
+{ Counts the rows of a menu-row list.
+  @param(head The list.)
+  @returns(The number of rows.) }
 function MenuRowCount(head: Types.PMenuRow): Word;
 var
   node: Types.PMenuRow;
@@ -148,7 +146,6 @@ var
   done: Boolean;
   menuLength: Byte;
   queryLength: Byte;
-  { [0].last counts them, [0].first says the menu is colored }
   spans: array[0..20] of TMenuSpan;
   node: Types.PCharacter;
   buttons: Integer;
@@ -158,7 +155,6 @@ var
   menuRow: Byte;
   firstRowSpans: Byte;
   workMenu: String;
-  { [2] the key mapped through enabledChoices; [1] set when a timeout answers with it }
   forcedKey: array[1..2] of Byte;
 
   { Finds each menu word's first and last character in workMenu, and where a two-row menu's second row starts. }
@@ -211,8 +207,8 @@ var
             TextRend.RenderChar(queryLength + column - 1, row, GDVars.menuHighlightColor, Black, 1,
                                 Ord(workMenu[index]), GDConsts.asciiFlag)
           else
-            TextRend.RenderChar(queryLength + column - 1, row, GDVars.menuItemColor, Black, 1, Ord(workMenu[index]),
-                                GDConsts.asciiFlag);
+            TextRend.RenderChar(queryLength + column - 1, row, GDVars.menuItemColor, Black, 1,
+                                Ord(workMenu[index]), GDConsts.asciiFlag);
           Inc(column)
         end
       end;
@@ -264,7 +260,8 @@ var
         done := True;
         Exit
       end;
-    if (node <> nil) and ((node = GDVars.currentCharacter) or (node = GDVars.selectionCharacter)) then
+    if (node <> nil) and
+        ((node = GDVars.currentCharacter) or (node = GDVars.selectionCharacter)) then
       AcceptCurrent
   end;
 
@@ -272,8 +269,8 @@ var
   function ArenaClick: Boolean;
   begin
     ArenaClick := ((GDVars.inMoveMenu <> 0) or (GDVars.cursorActive <> 0)) and
-      (GDVars.interfaceState = C_Ifc.IN_COMBAT) and (mouseCol >= 1) and (mouseCol <= 21) and (mouseRow >= 1) and
-      (mouseRow <= 21)
+      (GDVars.interfaceState = C_Ifc.IN_COMBAT) and (mouseCol >= 1) and (mouseCol <= 21) and
+      (mouseRow >= 1) and (mouseRow <= 21)
   end;
 
   { Turns an arena click into the movement key toward the clicked cell, from the aim cursor or the combatant. }
@@ -288,15 +285,16 @@ var
       originX := GDVars.arenaLoc[scan].x - GDVars.arena^.ox + 1;
       originY := GDVars.arenaLoc[scan].y - GDVars.arena^.oy + 1
     end;
-    key := Chr(Mouse.MouseDirection(originX, originY, mouseCol div 3 + 1, mouseRow div 3 + 1));
+    key := Chr(Mouse.MouseDirection(originX, originY, mouseCol div 3 + 1,
+                                    mouseRow div 3 + 1));
     done := True
   end;
 
   { Tells whether the click falls inside the 3-D view and view clicks are enabled. }
   function ViewAreaClick: Boolean;
   begin
-    ViewAreaClick := (GDVars.extendedMode <> 0) and (mouseCol >= 3) and (mouseCol <= 13) and (mouseRow >= 3)
-        and (mouseRow <= 13) and (GDVars.interfaceState = C_Ifc.VIEW_3D)
+    ViewAreaClick := (GDVars.extendedMode <> 0) and (mouseCol >= 3) and (mouseCol <= 13) and
+      (mouseRow >= 3) and (mouseRow <= 13) and (GDVars.interfaceState = C_Ifc.VIEW_3D)
   end;
 
   { Turns the click on the 3-D view into a direction key. }
@@ -311,15 +309,16 @@ var
   function WildernessClick: Boolean;
   begin
     WildernessClick := (GDVars.extendedMode <> 0) and (GDVars.zone0^.inDungeon = 0) and
-        (GDVars.interfaceState = C_Ifc.OVERLAND) and (mouseCol >= 1) and
-      (mouseCol <= 38) and (mouseRow >= 1) and (mouseRow <= 15)
+      (GDVars.interfaceState = C_Ifc.OVERLAND) and (mouseCol >= 1) and (mouseCol <= 38) and
+      (mouseRow >= 1) and (mouseRow <= 15)
   end;
 
   { Turns the click on the overland map into a direction key. }
   procedure HandleWildernessClick;
   begin
     GDVars.menuExtendedKey := 1;
-    key := Chr(Mouse.MouseDirection(GDVars.zone0^.wildX + 1, GDVars.zone0^.wildY + 1, mouseCol, mouseRow));
+    key := Chr(Mouse.MouseDirection(GDVars.zone0^.wildX + 1, GDVars.zone0^.wildY + 1, mouseCol,
+                                    mouseRow));
     done := True
   end;
 
@@ -343,7 +342,8 @@ var
         else if Pos('@', workMenu) <= mouseCol then
           Exit;
       for current := 1 to spans[0].last do
-        if (spans[current].first <= mouseCol) and (spans[current].last >= mouseCol) then begin
+        if (spans[current].first <= mouseCol) and
+            (spans[current].last >= mouseCol) then begin
           key := workMenu[spans[current].first];
           if current = GDVars.selectedChoice then
             GDVars.menuClickChanged := 0
@@ -531,8 +531,8 @@ begin
   end;
   repeat
   if (redraw <> 0) and (GDVars.portraitAnimation.currentFrame > 0) and
-      (TextRend.GetTicks -
-       frameTick >= GDVars.portraitAnimation.frames[GDVars.portraitAnimation.currentFrame].duration * 10) then begin
+      (TextRend.GetTicks - frameTick >=
+        GDVars.portraitAnimation.frames[GDVars.portraitAnimation.currentFrame].duration * 10) then begin
     Inc(GDVars.portraitAnimation.currentFrame);
     if GDVars.portraitAnimation.currentFrame > GDVars.portraitAnimation.count then
       GDVars.portraitAnimation.currentFrame := 1;
@@ -590,7 +590,7 @@ begin
               if twoRows <> 0 then begin
                   key := #84;
                   done := True
-              end else if query = 'Aim:' then begin
+              end else if query = GDConsts.aimPrompt then begin
                 key := #77;
                 done := True
               end
@@ -799,6 +799,8 @@ var
         Inc(skipped);
         Inc(menuIndex);
         if GDVars.menuVerticalTop + rows - 1 < menuIndex then
+          menuIndex := GDVars.menuVerticalTop;
+        if count - 1 < menuIndex then
           menuIndex := GDVars.menuVerticalTop
       end
     end else
@@ -806,7 +808,9 @@ var
         Inc(skipped);
         Dec(menuIndex);
         if menuIndex < GDVars.menuVerticalTop then
-          menuIndex := GDVars.menuVerticalTop + rows - 1
+          menuIndex := GDVars.menuVerticalTop + rows - 1;
+        if count - 1 < menuIndex then
+          menuIndex := count - 1
       end
   end;
 
@@ -843,11 +847,15 @@ var
     if down then begin
       Inc(menuIndex);
       if GDVars.menuVerticalTop + rows - 1 < menuIndex then
+        menuIndex := GDVars.menuVerticalTop;
+      if count - 1 < menuIndex then
         menuIndex := GDVars.menuVerticalTop
     end else begin
       Dec(menuIndex);
       if menuIndex < GDVars.menuVerticalTop then
-        menuIndex := GDVars.menuVerticalTop + rows - 1
+        menuIndex := GDVars.menuVerticalTop + rows - 1;
+      if count - 1 < menuIndex then
+        menuIndex := count - 1
     end;
     SkipLabels(down)
   end;

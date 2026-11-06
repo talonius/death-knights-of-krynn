@@ -4,34 +4,226 @@
 unit EclVm;
 interface
 
+{ EXIT, opcode $00: ends the script. Redraws the view frame if the copy protection showed, restores the saved current
+  character, clears the monster flags and the graphics flag, stops the interpreter, empties the gosub stack and puts the
+  text cursor back at row 17, column 1. }
+procedure EclExit;
+
+{ GOTO, opcode $01: jumps to the address in its argument. }
+procedure EclGoto;
+
+{ GOSUB, opcode $02: pushes the return address and jumps to the address in its argument. }
+procedure EclGosubCmd;
+
+{ COMPARE, opcode $03: compares its two arguments, as strings when either is a string type ($80 and up), else as
+  integers, and sets the comparison flags. }
+procedure EclCompare;
+
+{ ADD, SUBTRACT, DIVIDE and MULTIPLY, opcodes $04..$07: combines its first two arguments and stores the result at the
+  GBVM address in its third. SUBTRACT takes the first from the second; DIVIDE leaves the remainder in the zone's
+  division remainder. }
+procedure EclArithmetic;
+
+{ RANDOM, opcode $08: stores a random number from 0 to its first argument (0 to 254 when that is 255) at the address in
+  its second. }
+procedure EclRandom;
+
+{ SAVE, opcode $09: stores its first argument, a number or a string (type bit 7 set), at the address in its second. }
+procedure EclSave;
+
+{ LOAD CHARACTER, opcode $0A: makes the party member at the position in the low 7 bits of its argument current, or sets
+  the character-not-found flag when there is none. With bit 7 set and both removal flags raised, that member is removed
+  from the party and the party redrawn. }
+procedure EclLoadCharacter;
+
+{ SETUP MONSTER, opcode $0C: takes the monster's sprite, its greatest distance, its picture and the combat direction
+  flags from its four arguments, and shows the monster at the nearer of that distance and the clear distance ahead. }
+procedure EclSetupMonster;
+
+{ LOAD MONSTER, opcode $0B: adds the monster its first argument names to the party, its hit points scaled by the zone's
+  difficulty when it is an enemy, with as many copies as its second argument asks (at least one, and at most 63 monsters
+  in all), each with its own copies of the spells, items and effects. Its third argument picks the combat icon, loaded
+  into the next icon slot. }
+procedure EclLoadMonster;
+
+{ APPROACH, opcode $0D: brings the monster one step nearer and redraws it, unless it is already adjacent. }
+procedure EclApproach;
+
+{ INPUT NUMBER, opcode $0F: reads a number and stores it at the GBVM address in its second argument. }
+procedure EclInputNumber;
+
+{ INPUT STRING, opcode $10: reads up to 40 characters, a space when nothing is typed, and stores them at the GBVM
+  address in its second argument. }
+procedure EclInputString;
+
+{ PRINT and PRINTCLEAR, opcodes $11 and $12: shows its argument, a number or a string, in the message window; PRINTCLEAR
+  first clears the window and starts at its top. }
+procedure EclPrint;
+
+{ RETURN, opcode $13: pops the gosub stack and returns to its address, or ends the script like EXIT when the stack is
+  empty. }
+procedure EclReturn;
+
+{ COMPARE AND, opcode $14: sets the equal flag when both pairs of its four arguments are equal, the not-equal flag
+  otherwise. Note: with numbers in the first pair and strings in the second, the second test compares the first pair's
+  strings. }
+procedure EclCompareAnd;
+
+{ IF, opcodes $16..$1B (=, <>, <, >, <=, >=): skips the next command unless its comparison flag is set. }
+procedure EclIf;
+
+{ NEWECL, opcode $20: loads the script its argument names, remembering the current one in the zone, and stops the
+  interpreter so the game loop starts the new script. }
+procedure EclNewEcl;
+
+{ LOAD FILES and LOAD PIECES, opcodes $21 and $37. LOAD FILES loads the 3D map its first argument names (not 127 or 255,
+  and only in a dungeon); LOAD PIECES loads the wall sets its three arguments name into their slots (127 loads the
+  overland set, 255 empties a slot), slots 0 and 3 alone when both of the zone's target gates are set. Once both have
+  run after the overland map, the view frame and the party are redrawn. }
+procedure EclLoadFiles;
+
+{ AND and OR, opcodes $2F and $30: combines its first two arguments bitwise, truncates the result to a byte, sets the
+  comparison flags as for COMPARE of 0 with the result, and stores it at the address in its third. }
+procedure EclAndOr;
+
+{ GETTABLE, opcode $2A: reads the GBVM entry at its first argument's address plus its second and stores it at the
+  address in its third. }
+procedure EclGetTable;
+
+{ SAVETABLE, opcode $35: stores its first argument at the GBVM entry at its second argument's address plus its third. }
+procedure EclSaveTable;
+
+{ CLEAR MONSTERS, opcode $1C: forgets the loaded monsters and undead, resets the icon slots to 8, and empties the pool
+  and the treasure. }
+procedure EclClearMonsters;
+
+{ PARTY CHECK, opcode $1E: measures the party on the attribute its first argument names -- with none, whether anyone
+  carries the effect in its second; otherwise charisma, one of the eight thief skills or current movement -- and stores
+  the lowest, highest and average values and the found flag at the GBVM addresses in its other four arguments. Other
+  attributes do nothing. }
+procedure EclCheckParty;
+
+{ COMBAT, opcode $24: with no monsters loaded and no duel, runs the vault, the shop or the temple when the zone asks for
+  one, and otherwise settles the encounter; with monsters it runs the fight and settles it. Then it returns to the
+  overland or 3D view, keeps the search bit alone, clears the monster flags and redraws the interface (not after a shop
+  or temple overland). }
+procedure EclCombat;
+
+{ ON GOTO and ON GOSUB, opcodes $25 and $26: jumps to, or calls, the address its first argument picks from the list
+  whose length its second gives; an index past the list does nothing. }
+procedure EclOnGoto;
+
+{ TREASURE, opcode $27: adds the steel, gems and jewelry in its first three arguments to the pool, and to the treasure
+  the items whose template ids follow, as many as its fourth says (templates of type 255 are skipped). }
+procedure EclTreasure;
+
+{ ROB, opcode $28: takes the percentage of money in its second argument and, with the chance in its third, items from
+  the current character, or from every member when its first is non-zero. }
+procedure EclRob;
+
+{ YES/NO, opcode $22: asks yes or no and sets the equal flag for yes, the not-equal flag for no. }
+procedure EclYesNo;
+
+{ FIND ITEM, opcode $32: sets the equal flag when a party member carries an item of the type in its argument, the
+  not-equal flag otherwise. }
+procedure EclFindItem;
+
+{ DELAY, opcode $3A: waits 600 milliseconds. }
+procedure EclDelay;
+
+{ CLOCK, opcode $34: advances the clock by its first argument in the unit its second names. }
+procedure EclClock;
+
+{ PRINT RETURN, opcode $33: moves the message cursor to the start of the next line and clears the print-return flag. }
+procedure EclPrintReturn;
+
+{ CLEAR BOX, opcode $3D: redraws the view frame, the party and the picture box (not in a demo). }
+procedure EclClearBox;
+
+{ WHO, opcode $39: asks the player to pick a party member, with its argument as the prompt, and makes that member
+  current. }
+procedure EclWho;
+
+{ ADD NPC, opcode $36: adds the monster its first argument names to the party as a non-player character whose morale is
+  half its second argument. }
+procedure EclAddNpc;
+
+{ SPELL, opcode $3B: looks for an enabled member with the spell in its first argument memorized, and stores the spell's
+  slot (255 when none has it) and the member's position at the GBVM addresses in its second and third. }
+procedure EclSpell;
+
+{ CALL, opcode $2D: runs the engine routine its address selects: the display update, a step or fireball sound, the
+  forward move, the wall check overland, or the next frame of the picture box's animation. }
+procedure EclCall;
+
+{ DUMP, opcode $3E: removes the current character from the party, keeps the character that becomes current as the saved
+  character to restore, and redraws the party. }
+procedure EclDump;
+
+{ FIND SPECIAL, opcode $3F: clears the compare flags, then sets the equal flag when the current character has the effect
+  in its argument, the not-equal flag otherwise. }
+procedure EclFindSpecial;
+
+{ DESTROY ITEMS, opcode $40: removes each item matching its argument from every party member, unreadying it first when
+  it is readied, and recalculates each member; the current character is restored afterwards. }
+procedure EclDestroyItems;
+
+{ Opcode $23: clears the message window, updates the display and ends the script. }
+procedure EclRedrawExit;
+
+{ SOUND, opcode $2C: with bit 7 of its argument set, starts the music for the disk in the low 7 bits; cues 1..6 play
+  their sound from the cue table, and anything else does nothing. }
+procedure EclPlaySound;
+
+{ NO OPERATION, opcode $29: steps past the command. }
+procedure EclNoOperation;
+
+{ SHOP, opcode $3C: fills the treasure with the stock list its argument picks (1..8, any other value meaning 1), each
+  item identified, and opens the shop. }
+procedure EclShop;
+
+{ Runs the handler for the current opcode. }
+procedure DispatchEclCommand;
+
+{ Runs the loaded script until a command stops it, the party is defeated or the script is aborted.
+  @param(entry The address to start at.) }
+procedure CallEclScript(entry: Word);
+
+{ Finishes a NEWECL: for each newly loaded block it frees the animation, forgets the saved picture, refreshes the cell
+  event, clears the zone-1 leave-map word and runs the block's on-load entry script. If that loads no further block, it
+  records the block as the last one entered, redraws the map view (when the view's files are loaded and the party has
+  not just left the 3D view, or when it stays in the 3D view), runs two more of the block's entry scripts, then restores
+  and redisplays the selected character. A NEWECL in any of those scripts repeats it for the next block. The interface
+  state is remembered at the end. }
+procedure NewEclDone;
+
 { The game, for FixMain: loads the zone's script (the start script for a new game, or a demo's), runs its main entry,
   then repeats the movement menu, camp or a search turn, the before-move entry, the step and the after-move entry,
   following NEWECL into new scripts; it restarts on restartLoop and, when the party is defeated or the demo ends,
   removes the party and returns. }
 procedure GameLoop;
-
-{ Runs the loaded script until a command stops it, the party is defeated or the script is aborted.
-  @param(entry The address to start at.) }
-procedure CallEclScript(entry: Word);
 implementation
-uses C_Ifc, C_Side, C_Stat, GDConsts, GDVars, Types, EclMenu, SaveLoad, CharHlp, TextRend, FxEngine,
-  Portrait, MapView, MapCurs, Music, MenuCore, Crt, Mouse, Explore, MapTiles, Border, GameTime, Vault, View3D, Shop,
-  Temple, PostCbt, Combat, Camp, CharGen, ViewChar;
+uses C_Ifc, C_Side, C_Stat, GDConsts, GDVars, EclMenu, CharHlp, TextRend, FxEngine, Portrait, MapView,
+  MapCurs, Music, MenuCore, Crt, Mouse, Explore, MapTiles, Border, GameTime, Vault, View3D, Temple, Shop, PostCbt, Camp,
+  CharGen, SaveLoad, Combat, ViewChar, Types;
 type
+  PCharacterName = ^TString40;
+  TCharacterFrame = record
+    prefix: array[0..4] of Byte;
+    character: Types.TCharacter
+  end;
+  TListFrame = record
+    case Byte of
+      0: (head: Pointer; shifted: Pointer; tail: Pointer);
+      1: (payloadLead: array[0..3] of Byte;
+         payload: array[0..7] of Byte);
+      2: (payloadTail: array[0..3] of Byte;
+         payloadString: String[7])
+  end;
+  TPictureString = String[12];
+  PPictureString = ^TPictureString;
   TString50 = String[50];
-const PARTY_GAINS_TEXT = 'Congratulations the party gains experience!';
-      GAINS_PREFIX = 'Congratulations ';
-      GAINS_SUFFIX = ' gains experience!';
-      JOURNAL_ENTRY_PREFIX = 'This is recorded as journal entry ';
-      WHAT_DO_YOU_DO_TEXT = 'what do you do?';
-      PRESS_BUTTON_TEXT = 'PRESS BUTTON OR RETURN TO CONTINUE.';
-      PRESS_RETURN_TEXT = 'PRESS <ENTER>/<RETURN> TO CONTINUE';
-      PARTY_KILLED_TEXT = 'The entire party is killed!';
-      PRESS_ENTER_TEXT = 'press <enter>/<return> to continue';
 
-{ EXIT, opcode $00: ends the script. Redraws the view frame if the copy protection showed, restores the saved current
-  character, clears the monster flags and the graphics flag, stops the interpreter, empties the gosub stack and puts the
-  text cursor back at row 17, column 1. }
 procedure EclExit;
 begin
   if GDVars.protectionShown <> 0 then Border.DrawViewFrame;
@@ -54,22 +246,18 @@ begin
   GDVars.boxCleared := 0
 end;
 
-{ GOTO, opcode $01: jumps to the address in its argument. }
 procedure EclGoto;
 begin
   EclMenu.LoadEclVars(1);
   GDVars.eclIp := EclMenu.CombineBytesToWord(GDVars.varLo[1], GDVars.varHi[1])
 end;
 
-{ GOSUB, opcode $02: pushes the return address and jumps to the address in its argument. }
 procedure EclGosubCmd;
 begin
   EclMenu.LoadEclVars(1);
   EclMenu.EclGosub(1)
 end;
 
-{ COMPARE, opcode $03: compares its two arguments, as strings when either is a string type ($80 and up), else as
-  integers, and sets the comparison flags. }
 procedure EclCompare;
 var
   valueA: Word;
@@ -89,9 +277,6 @@ begin
   end
 end;
 
-{ ADD, SUBTRACT, DIVIDE and MULTIPLY, opcodes $04..$07: combines its first two arguments and stores the result at the
-  GBVM address in its third. SUBTRACT takes the first from the second; DIVIDE leaves the remainder in the zone's
-  division remainder. }
 procedure EclArithmetic;
 var address: Word;
     values: array[1..2] of Word;
@@ -114,8 +299,6 @@ begin
   EclMenu.WriteGbvm(address, answer, GDVars.varTypes[3])
 end;
 
-{ RANDOM, opcode $08: stores a random number from 0 to its first argument (0 to 254 when that is 255) at the address in
-  its second. }
 procedure EclRandom;
 var range: Byte;
     randomValue: Byte;
@@ -129,7 +312,6 @@ begin
   EclMenu.WriteGbvm(address, randomValue, GDVars.varTypes[2])
 end;
 
-{ SAVE, opcode $09: stores its first argument, a number or a string (type bit 7 set), at the address in its second. }
 procedure EclSave;
 var value: Word;
     address: Word;
@@ -143,9 +325,6 @@ begin
     EclMenu.WriteGbvmString(address, GDVars.gbStrings[1])
 end;
 
-{ LOAD CHARACTER, opcode $0A: makes the party member at the position in the low 7 bits of its argument current, or sets
-  the character-not-found flag when there is none. With bit 7 set and both removal flags raised, that member is removed
-  from the party and the party redrawn. }
 procedure EclLoadCharacter;
 var cursor: Types.PCharacter;
     { Unused in this version; see the other implementations of this routine. }
@@ -180,8 +359,6 @@ begin
   end
 end;
 
-{ SETUP MONSTER, opcode $0C: takes the monster's sprite, its greatest distance, its picture and the combat direction
-  flags from its four arguments, and shows the monster at the nearer of that distance and the clear distance ahead. }
 procedure EclSetupMonster;
 var
   { Unused in this version; see the other implementations of this routine. }
@@ -193,38 +370,32 @@ begin
   GDVars.monsterPictureId := EclMenu.GetEclVar(3);
   GDVars.combatDirectionFlags := EclMenu.GetEclVar(4);
   GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00] := EclMenu.MaxMonsterDist(GDVars.mapState.x,
-                                                                                           GDVars.mapState.y,
-                                                                                           GDVars.mapState.facing);
-  if GDVars.zone1^.monsterMaxDist[GDConsts.monsterMaxDistIndex +
-                                    $7C00] < GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00] then
-    GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex +
-                                $7C00] := GDVars.zone1^.monsterMaxDist[GDConsts.monsterMaxDistIndex + $7C00];
+                                                                                            GDVars.mapState.y,
+                                                                                            GDVars.mapState.facing);
+  if GDVars.zone1^.monsterMaxDist[GDConsts.monsterMaxDistIndex + $7C00] <
+      GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00] then
+    GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00] :=
+      GDVars.zone1^.monsterMaxDist[GDConsts.monsterMaxDistIndex + $7C00];
   EclMenu.DisplayMonster(GDVars.monsterSpriteId, GDVars.monsterPictureId,
                          GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00], GDVars.monsterFlags)
 end;
 
-{ LOAD MONSTER, opcode $0B: adds the monster its first argument names to the party, its hit points scaled by the zone's
-  difficulty when it is an enemy, with as many copies as its second argument asks (at least one, and at most 63 monsters
-  in all), each with its own copies of the spells, items and effects. Its third argument picks the combat icon, loaded
-  into the next icon slot. }
 procedure EclLoadMonster;
 var monsterId: Byte;
     count: Byte;
     pictureId: Byte;
     copies: Byte;
-    tail: Types.PCharacter;
-    clone: Types.PCharacter;
-    creature: Types.PCharacter;
-    saved: Types.PCharacter;
-    template: Types.TCharacter;
-    pictureName: String[12];
-    itemsHead: Types.PItem;
-    itemPrevious: Types.PItem;
-    itemsStart: Types.PItem;
-    effectsHead: Types.PEffect;
-    effectPrevious: Types.PEffect;
-    effectsStart: Types.PEffect;
-    spellBlock: Types.PSpellBlock;
+    tail: Pointer;
+    clone: Pointer;
+    creature: Pointer;
+    saved: Pointer;
+    template: TCharacterFrame;
+    itemsFrame: TListFrame;
+    effectsFrame: TListFrame;
+    spellsFrame: TListFrame;
+    itemsFramePtr: Pointer absolute itemsFrame;
+    effectsFramePtr: Pointer absolute effectsFrame;
+    spellsFramePtr: Pointer absolute spellsFrame;
 begin
   saved := GDVars.currentCharacter;
   copies := 1;
@@ -233,80 +404,81 @@ begin
     tail := nil;
     clone := nil;
     monsterId := EclMenu.GetEclVar(1);
-    EclMenu.InitCreature(monsterId, creature, itemsHead, effectsHead, spellBlock);
-    if (creature^.side = C_Side.ENEMY) and (GDVars.zone0^.difficulty > 0) and
+    EclMenu.InitCreature(monsterId, creature, itemsFramePtr, effectsFramePtr, spellsFramePtr);
+    if (Types.PCharacter(creature)^.side = C_Side.ENEMY) and (GDVars.zone0^.difficulty > 0) and
         (GDVars.zone0^.difficulty < 6) then begin
-      creature^.hitPoints := creature^.hitPoints * (GDVars.zone0^.difficulty + 1) div 4;
-      creature^.maxHitPoints := creature^.maxHitPoints * (GDVars.zone0^.difficulty + 1) div 4;
-      if (creature^.hitPoints = 0) or (creature^.maxHitPoints = 0) then begin
-        creature^.hitPoints := 1;
-        creature^.maxHitPoints := 1
+      Types.PCharacter(creature)^.hitPoints := Types.PCharacter(creature)^.hitPoints *
+        (GDVars.zone0^.difficulty + 1) div 4;
+      Types.PCharacter(creature)^.maxHitPoints := Types.PCharacter(creature)^.maxHitPoints *
+        (GDVars.zone0^.difficulty + 1) div 4;
+      if (Types.PCharacter(creature)^.hitPoints = 0) or (Types.PCharacter(creature)^.maxHitPoints = 0) then begin
+        Types.PCharacter(creature)^.hitPoints := 1;
+        Types.PCharacter(creature)^.maxHitPoints := 1
       end
     end;
-    if creature^.levelUndead <> 0 then
+    if Types.PCharacter(creature)^.levelUndead <> 0 then
       Inc(GDVars.undeadCount);
-    template := creature^;
-    itemsStart := itemsHead;
-    effectsStart := effectsHead;
+    template.character := Types.PCharacter(creature)^;
+    effectsFrame.shifted := itemsFrame.head;
+    spellsFrame.shifted := effectsFrame.head;
     count := EclMenu.GetEclVar(2);
     if count <= 0 then count := 1;
     pictureId := EclMenu.GetEclVar(3);
     tail := GDVars.partyHead;
-    pictureName := 'CPIC';
-    MapTiles.LoadIconAnim(pictureName, pictureId, GDVars.iconAnimation);
-    while tail^.next <> nil do
-      tail := tail^.next;
-    tail^.next := creature;
-    tail := tail^.next;
-    { a creature's orderNumber is its icon slot }
-    tail^.orderNumber := GDVars.iconAnimation;
-    tail^.next := nil;
+    PPictureString(@itemsFrame.shifted)^ := 'CPIC';
+    MapTiles.LoadIconAnim(itemsFrame.payloadString, pictureId, GDVars.iconAnimation);
+    while Types.PCharacter(tail)^.next <> nil do
+      tail := Types.PCharacter(tail)^.next;
+    Types.PCharacter(tail)^.next := creature;
+    tail := Types.PCharacter(tail)^.next;
+    Types.PCharacter(tail)^.orderNumber := GDVars.iconAnimation;
+    Types.PCharacter(tail)^.next := nil;
     Inc(GDVars.loadedMonsterCount);
     Inc(copies);
     while (copies <= count) and (GDVars.loadedMonsterCount < 63) do begin
       GetMem(clone, SizeOf(Types.TCharacter));
-      tail^.next := clone;
-      tail := tail^.next;
-      tail^ := template;
-      tail^.orderNumber := GDVars.iconAnimation;
-      tail^.next := nil;
-      tail^.effects := nil;
-      tail^.items := nil;
-      tail^.spells := nil;
+      Types.PCharacter(tail)^.next := clone;
+      tail := Types.PCharacter(tail)^.next;
+      Types.PCharacter(tail)^ := template.character;
+      Types.PCharacter(tail)^.orderNumber := GDVars.iconAnimation;
+      Types.PCharacter(tail)^.next := nil;
+      Types.PCharacter(tail)^.effects := nil;
+      Types.PCharacter(tail)^.items := nil;
+      Types.PCharacter(tail)^.spells := nil;
       Inc(copies);
       Inc(GDVars.loadedMonsterCount);
-      if spellBlock <> nil then begin
-        GetMem(tail^.spells, SizeOf(Types.TSpellBlock));
-        tail^.spells^ := spellBlock^
+      if spellsFrame.head <> nil then begin
+        GetMem(Types.PCharacter(tail)^.spells, SizeOf(Types.TSpellBlock));
+        Types.PCharacter(tail)^.spells^ := Types.PSpellBlock(spellsFrame.head)^
       end;
-      while itemsHead <> nil do begin
-        if tail^.items = nil then begin
-          GetMem(tail^.items, SizeOf(Types.TItem));
-          tail^.items^ := itemsHead^;
-          tail^.items^.next := nil
+      while itemsFrame.head <> nil do begin
+        if Types.PCharacter(tail)^.items = nil then begin
+          GetMem(Types.PCharacter(tail)^.items, SizeOf(Types.TItem));
+          Types.PCharacter(tail)^.items^ := Types.PItem(itemsFrame.head)^;
+          Types.PCharacter(tail)^.items^.next := nil
         end else begin
-          itemPrevious := tail^.items;
-          GetMem(tail^.items, SizeOf(Types.TItem));
-          tail^.items^ := itemsHead^;
-          tail^.items^.next := itemPrevious
+          effectsFrame.tail := Types.PCharacter(tail)^.items;
+          GetMem(Types.PCharacter(tail)^.items, SizeOf(Types.TItem));
+          Types.PCharacter(tail)^.items^ := Types.PItem(itemsFrame.head)^;
+          Types.PCharacter(tail)^.items^.next := Types.PItem(effectsFrame.tail)
         end;
-        itemsHead := itemsHead^.next
+        itemsFrame.head := Types.PItem(itemsFrame.head)^.next
       end;
-      itemsHead := itemsStart;
-      while effectsHead <> nil do begin
-        if tail^.effects = nil then begin
-          GetMem(tail^.effects, SizeOf(Types.TEffect));
-          tail^.effects^ := effectsHead^;
-          tail^.effects^.next := nil
+      itemsFrame.head := effectsFrame.shifted;
+      while effectsFrame.head <> nil do begin
+        if Types.PCharacter(tail)^.effects = nil then begin
+          GetMem(Types.PCharacter(tail)^.effects, SizeOf(Types.TEffect));
+          Types.PCharacter(tail)^.effects^ := Types.PEffect(effectsFrame.head)^;
+          Types.PCharacter(tail)^.effects^.next := nil
         end else begin
-          effectPrevious := tail^.effects;
-          GetMem(tail^.effects, SizeOf(Types.TEffect));
-          tail^.effects^ := effectsHead^;
-          tail^.effects^.next := effectPrevious
+          spellsFrame.tail := Types.PCharacter(tail)^.effects;
+          GetMem(Types.PCharacter(tail)^.effects, SizeOf(Types.TEffect));
+          Types.PCharacter(tail)^.effects^ := Types.PEffect(effectsFrame.head)^;
+          Types.PCharacter(tail)^.effects^.next := Types.PEffect(spellsFrame.tail)
         end;
-        effectsHead := effectsHead^.next
+        effectsFrame.head := Types.PEffect(effectsFrame.head)^.next
       end;
-      effectsHead := effectsStart
+      effectsFrame.head := spellsFrame.shifted
     end;
     Inc(GDVars.iconAnimation);
     GDVars.monstersLoaded := 1;
@@ -314,14 +486,12 @@ begin
   end
 end;
 
-{ APPROACH, opcode $0D: brings the monster one step nearer and redraws it, unless it is already adjacent. }
 procedure EclApproach;
 begin
   if GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00] > 0 then begin
     Dec(GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00]);
     EclMenu.DisplayMonster(GDVars.monsterSpriteId, GDVars.monsterPictureId,
-                           GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00],
-                           GDVars.monsterFlags)
+                           GDVars.zone1^.monsterDist[GDConsts.monsterDistIndex + $7C00], GDVars.monsterFlags)
   end;
   Inc(GDVars.eclIp)
 end;
@@ -362,7 +532,6 @@ begin
   end
 end;
 
-{ INPUT NUMBER, opcode $0F: reads a number and stores it at the GBVM address in its second argument. }
 procedure EclInputNumber;
 var prompt: String[1];
     value: Word;
@@ -375,8 +544,6 @@ begin
   EclMenu.WriteGbvm(address, value, GDVars.varTypes[2])
 end;
 
-{ INPUT STRING, opcode $10: reads up to 40 characters, a space when nothing is typed, and stores them at the GBVM
-  address in its second argument. }
 procedure EclInputString;
 var prompt: String[1];
     address: Word;
@@ -390,8 +557,6 @@ begin
   EclMenu.WriteGbvmString(address, reply)
 end;
 
-{ PRINT and PRINTCLEAR, opcodes $11 and $12: shows its argument, a number or a string, in the message window; PRINTCLEAR
-  first clears the window and starts at its top. }
 procedure EclPrint;
 begin
   EclMenu.LoadEclVars(1);
@@ -409,8 +574,6 @@ begin
   GDVars.slowText := 0
 end;
 
-{ RETURN, opcode $13: pops the gosub stack and returns to its address, or ends the script like EXIT when the stack is
-  empty. }
 procedure EclReturn;
 begin
   Inc(GDVars.eclIp);
@@ -423,9 +586,6 @@ begin
     EclVm.EclExit
 end;
 
-{ COMPARE AND, opcode $14: sets the equal flag when both pairs of its four arguments are equal, the not-equal flag
-  otherwise. Note: with numbers in the first pair and strings in the second, the second test compares the first pair's
-  strings. }
 procedure EclCompareAnd;
 var
   first: Boolean;
@@ -452,7 +612,6 @@ begin
     GDVars.cmpFlags[1] := True
 end;
 
-{ IF, opcodes $16..$1B (=, <>, <, >, <=, >=): skips the next command unless its comparison flag is set. }
 procedure EclIf;
 begin
   Inc(GDVars.eclIp);
@@ -466,8 +625,6 @@ begin
   end
 end;
 
-{ NEWECL, opcode $20: loads the script its argument names, remembering the current one in the zone, and stops the
-  interpreter so the game loop starts the new script. }
 procedure EclNewEcl;
 var scriptId: Byte;
 begin
@@ -482,10 +639,6 @@ begin
   FillChar(GDVars.monsterFlags, SizeOf(GDVars.monsterFlags), 0)
 end;
 
-{ LOAD FILES and LOAD PIECES, opcodes $21 and $37. LOAD FILES loads the 3D map its first argument names (not 127 or 255,
-  and only in a dungeon); LOAD PIECES loads the wall sets its three arguments name into their slots (127 loads the
-  overland set, 255 empties a slot), slots 0 and 3 alone when both of the zone's target gates are set. Once both have
-  run after the overland map, the view frame and the party are redrawn. }
 procedure EclLoadFiles;
 var fileIds: array[1..3] of Byte;
     index: Byte;
@@ -539,8 +692,6 @@ begin
   end
 end;
 
-{ AND and OR, opcodes $2F and $30: combines its first two arguments bitwise, truncates the result to a byte, sets the
-  comparison flags as for COMPARE of 0 with the result, and stores it at the address in its third. }
 procedure EclAndOr;
 var address: Word;
     valueB: Word;
@@ -559,8 +710,6 @@ begin
   EclMenu.WriteGbvm(address, result, GDVars.varTypes[3])
 end;
 
-{ GETTABLE, opcode $2A: reads the GBVM entry at its first argument's address plus its second and stores it at the
-  address in its third. }
 procedure EclGetTable;
 var tableAddress: Word;
     address: Word;
@@ -577,7 +726,6 @@ begin
   EclMenu.WriteGbvm(address, value, GDVars.varTypes[3])
 end;
 
-{ SAVETABLE, opcode $35: stores its first argument at the GBVM entry at its second argument's address plus its third. }
 procedure EclSaveTable;
 var offset: Word;
     tableAddress: Word;
@@ -610,8 +758,8 @@ var
   valueType: Byte;
   noQuery: Types.TString40 absolute zeroLength;
   noMenu: String absolute zeroLength;
-  { the nodes as EclVerticalMenu reads them }
   menuList: Types.PItem absolute cursor;
+  menuRedraw: Boolean absolute redraw;
   choiceIndex: Integer absolute choice;
   nodeList: Types.PMenuRow absolute cursor;
 begin
@@ -632,24 +780,23 @@ begin
   GDVars.currentColumn := 1;
   GDVars.currentRow := 17;
   TextRend.DisplayMessageWindow(1, 17, 38, 22, LightGreen, Black, True, message);
-  while nodeList <> nil do begin
-    nodeList^.name := GDVars.gbStrings[index];
-    nodeList^.heading := 0;
-    nodeList := nodeList^.next;
+  while cursor <> nil do begin
+    PCharacterName(cursor)^ := GDVars.gbStrings[index];
+    Types.PItem(cursor)^.inUse := 0;
+    cursor := Types.PItem(cursor)^.next;
     Inc(index)
   end;
   cursor := saved;
   choice := 0;
   EclMenu.EclVerticalMenu(noQuery, noMenu, LightMagenta, LightGreen, White, 1, GDVars.currentRow + 1, 38, 22,
-                          menuList, 0, redraw, choiceIndex, menuList);
+                          menuList, False, menuRedraw, choiceIndex, menuList);
   EclMenu.WriteGbvm(address, choice, valueType);
   MenuCore.FreeMenuRows(nodeList);
   TextRend.ClearRect(1, 17, 38, 22)
 end;
 
 { HORIZONTAL MENU, opcode $2B, and $31 with a prompt: shows a horizontal menu of as many strings as its second argument
-  says and stores the choice at the GBVM address in its first. A single choice is accepted with Enter, and one reading
-  'PRESS BUTTON OR RETURN TO CONTINUE.' becomes 'PRESS <ENTER>/<RETURN> TO CONTINUE'.
+  says and stores the choice at the GBVM address in its first.
   @param(withPrompt Non-zero to show 'what do you do?' first.) }
 procedure EclHMenu(withPrompt: Byte);
 var
@@ -672,7 +819,7 @@ var
   animate: Boolean absolute animateByte;
 begin
   if withPrompt <> 0 then
-    TextRend.DisplayMessageWindow(1, 17, 38, 22, LightGreen, Black, False, EclVm.WHAT_DO_YOU_DO_TEXT);
+    TextRend.DisplayMessageWindow(1, 17, 38, 22, LightGreen, Black, False, GDConsts.whatDoYouDoText);
   GDVars.selectedChoice := 1;
   zeroLength := 0;
   menu := '';
@@ -683,17 +830,9 @@ begin
   Dec(GDVars.eclIp);
   EclMenu.LoadEclVars(count);
   menu := '';
-  if count = 1 then begin
-    enterOkByte := 1;
-    highlightColor := White;
-    menuColor := White;
-    if GDVars.gbStrings[1] = EclVm.PRESS_BUTTON_TEXT then
-      GDVars.gbStrings[1] := EclVm.PRESS_RETURN_TEXT
-  end else begin
-    enterOkByte := 0;
-    highlightColor := White;
-    menuColor := LightGreen
-  end;
+  enterOkByte := 0;
+  highlightColor := White;
+  menuColor := LightGreen;
   animateByte := GDVars.eclGraphics;
   for index := 1 to count - 1 do
     menu := menu + '~' + GDVars.gbStrings[index] + ' ';
@@ -704,8 +843,6 @@ begin
   TextRend.ClearRect(0, 24, 39, 24)
 end;
 
-{ CLEAR MONSTERS, opcode $1C: forgets the loaded monsters and undead, resets the icon slots to 8, and empties the pool
-  and the treasure. }
 procedure EclClearMonsters;
 var next: Types.PItem;
     { Unused in this version; see the other implementations of this routine. }
@@ -724,21 +861,13 @@ begin
   end
 end;
 
-{ Empty routine with no callers. }
-procedure NoopEclVmA; begin end;
-
-{ PARTY CHECK, opcode $1E: measures the party on the attribute its first argument names -- with none, whether anyone
-  carries the effect in its second; otherwise charisma, one of the eight thief skills or current movement -- and stores
-  the lowest, highest and average values and the found flag at the GBVM addresses in its other four arguments. Other
-  attributes do nothing. }
 procedure EclCheckParty;
 var attribute: Integer;
     sum: Integer;
     effectId: Byte;
     cursor: Types.PCharacter;
     found: ShortInt;
-    scratch: Types.PEffect;
-    { declared together, so one FillChar clears all three }
+    scratch: Pointer;
     average: Byte;
     maxValue: Byte;
     minValue: Byte;
@@ -776,7 +905,6 @@ begin
   maxValue := 0;
   Dec(attribute, $7C00);
   case attribute of
-    { no attribute: does anyone carry the effect }
     -$7C00: begin
       while (cursor <> nil) and (found = 0) do begin
         found := Ord(CharHlp.HasEffect(cursor, effectId, scratch));
@@ -785,7 +913,6 @@ begin
       FillChar(minValue, 3, 0);
       Write4Gbvm
     end;
-    { charisma, the last of the current stats }
     $19: begin
       while cursor <> nil do begin
         Inc(count);
@@ -797,7 +924,6 @@ begin
       average := sum div count;
       Write4Gbvm
     end;
-    { the eight thief skills, $7CA5..$7CAC }
     $A5..$AC: begin
       skillIndex := attribute - $A4;
       while cursor <> nil do begin
@@ -812,7 +938,6 @@ begin
       average := sum div count;
       Write4Gbvm
     end;
-    { current movement }
     $9F: begin
       while cursor <> nil do begin
         Inc(count);
@@ -827,16 +952,6 @@ begin
   end
 end;
 
-{ Empty routine with no callers. }
-procedure NoopEclVmB; begin end;
-
-{ Empty routine with no callers. }
-procedure NoopEclVmC; begin end;
-
-{ COMBAT, opcode $24: with no monsters loaded and no duel, runs the vault, the shop or the temple when the zone asks for
-  one, and otherwise settles the encounter; with monsters it runs the fight and settles it. Then it returns to the
-  overland or 3D view, keeps the search bit alone, clears the monster flags and redraws the interface (not after a shop
-  or temple overland). }
 procedure EclCombat;
 var wallDist: Word;
     redrawInterface: Byte;
@@ -872,8 +987,8 @@ begin
   end;
   if GDVars.zone0^.inDungeon = 0 then GDVars.interfaceState := C_Ifc.OVERLAND
   else GDVars.interfaceState := C_Ifc.VIEW_3D;
-  GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex +
-                              $7C00] := GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex + $7C00] and $01;
+  GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex + $7C00] :=
+    GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex + $7C00] and $01;
   FillChar(GDVars.monsterFlags, SizeOf(GDVars.monsterFlags), 0);
   GDVars.eclGraphics := 0;
   if redrawInterface <> 0 then begin
@@ -884,8 +999,6 @@ begin
   GDVars.extendedMode := savedExtendedMode
 end;
 
-{ ON GOTO and ON GOSUB, opcodes $25 and $26: jumps to, or calls, the address its first argument picks from the list
-  whose length its second gives; an index past the list does nothing. }
 procedure EclOnGoto;
 var choice: Byte;
     count: Byte;
@@ -913,8 +1026,6 @@ begin
   end
 end;
 
-{ TREASURE, opcode $27: adds the steel, gems and jewelry in its first three arguments to the pool, and to the treasure
-  the items whose template ids follow, as many as its fourth says (templates of type 255 are skipped). }
 procedure EclTreasure;
 var count: Byte;
     index: Byte;
@@ -923,7 +1034,6 @@ var count: Byte;
     previous: Types.PItem;
 begin
   EclMenu.LoadEclVars(4);
-  { steel, gems, jewelry }
   Inc(GDVars.pooledMoney[4], EclMenu.GetEclVar(1));
   Inc(GDVars.pooledMoney[5], EclMenu.GetEclVar(2));
   Inc(GDVars.pooledMoney[6], EclMenu.GetEclVar(3));
@@ -933,9 +1043,7 @@ begin
   for index := 1 to count do begin
     itemId := EclMenu.GetEclVar(index);
     if GDVars.itemTemplates[itemId].itemType <> 255 then begin
-      { the template is TItem from itemType on }
-      Move(GDVars.itemTemplates[itemId], item.itemType,
-           SizeOf(Types.TItemTemplate));
+      Move(GDVars.itemTemplates[itemId], item.itemType, SizeOf(Types.TItemTemplate));
       item.next := nil;
       item.inUse := 0;
       if GDVars.treasureItems = nil then begin
@@ -951,8 +1059,6 @@ begin
   end
 end;
 
-{ ROB, opcode $28: takes the percentage of money in its second argument and, with the chance in its third, items from
-  the current character, or from every member when its first is non-zero. }
 procedure EclRob;
 var wholeParty: Byte;
     percentMoney: Byte;
@@ -993,7 +1099,6 @@ begin
   MenuCore.ClearBottomLine
 end;
 
-{ YES/NO, opcode $22: asks yes or no and sets the equal flag for yes, the not-equal flag for no. }
 procedure EclYesNo;
 var
   { Unused in this version; see the other implementations of this routine. }
@@ -1007,14 +1112,6 @@ begin
     GDVars.cmpFlags[1] := True
 end;
 
-{ Empty routine with no callers. }
-procedure NoopEclVmD; begin end;
-
-{ Empty routine with no callers. }
-procedure NoopEclVmE; begin end;
-
-{ FIND ITEM, opcode $32: sets the equal flag when a party member carries an item of the type in its argument, the
-  not-equal flag otherwise. }
 procedure EclFindItem;
 var itemType: Byte;
     { Unused in this version; see the other implementations of this routine. }
@@ -1043,7 +1140,6 @@ begin
   end
 end;
 
-{ DELAY, opcode $3A: waits 600 milliseconds. }
 procedure EclDelay;
 begin
   Inc(GDVars.eclIp);
@@ -1093,7 +1189,6 @@ begin
     allTargets := 1
   else
     partyPosition := FxEngine.RollDice(1, GDVars.zone1^.partySize[$7F3E]);
-  { a saving throw, not an attack roll }
   if (attack and $80) <> 0 then begin
     saveModifier := attack and $0F;
     saveType := attackVar and $07;
@@ -1143,17 +1238,13 @@ begin
     Border.DrawWindowFrame(0);
     GDVars.currentColumn := 2;
     GDVars.currentRow := 2;
-    TextRend.DisplayMessageWindow(1, 1, 38, 22, LightGreen, Black, True, EclVm.PARTY_KILLED_TEXT);
+    TextRend.DisplayMessageWindow(1, 1, 38, 22, LightGreen, Black, True, GDConsts.partyKilledText);
     Delay(3000)
   end;
   GDVars.currentCharacter := saved;
-  TextRend.DisplayAndPause(White, Black, EclVm.PRESS_ENTER_TEXT)
+  TextRend.DisplayAndPause(White, Black, GDConsts.pressToContinue)
 end;
 
-{ Empty routine with no callers. }
-procedure NoopEclVmF; begin end;
-
-{ CLOCK, opcode $34: advances the clock by its first argument in the unit its second names. }
 procedure EclClock;
 var
   amount: Byte;
@@ -1165,7 +1256,6 @@ begin
   GameTime.AdvanceTime(amount, ShortInt(timeUnit))
 end;
 
-{ PRINT RETURN, opcode $33: moves the message cursor to the start of the next line and clears the print-return flag. }
 procedure EclPrintReturn;
 begin
   Inc(GDVars.eclIp);
@@ -1179,7 +1269,6 @@ begin
   end
 end;
 
-{ CLEAR BOX, opcode $3D: redraws the view frame, the party and the picture box (not in a demo). }
 procedure EclClearBox;
 begin
   Inc(GDVars.eclIp);
@@ -1194,8 +1283,6 @@ begin
   GDVars.boxCleared := 1
 end;
 
-{ WHO, opcode $39: asks the player to pick a party member, with its argument as the prompt, and makes that member
-  current. }
 procedure EclWho;
 var prompt: String[255];
     savedExtendedMode: Byte;
@@ -1210,8 +1297,6 @@ begin
   GDVars.extendedMode := savedExtendedMode
 end;
 
-{ ADD NPC, opcode $36: adds the monster its first argument names to the party as a non-player character whose morale is
-  half its second argument. }
 procedure EclAddNpc;
 var
   { Unused in this version; see the other implementations of this routine. }
@@ -1223,15 +1308,13 @@ begin
   monsterId := EclMenu.GetEclVar(1);
   SaveLoad.AddCreatureToParty(monsterId);
   morale := EclMenu.GetEclVar(2);
-  morale := Integer(morale) div 2;
+  morale := morale shr 1;
   morale := morale or $80;
   GDVars.currentCharacter^.npc := morale;
   CharHlp.RecalcStats(GDVars.currentCharacter);
   CharHlp.DisplayParty(GDVars.currentCharacter)
 end;
 
-{ SPELL, opcode $3B: looks for an enabled member with the spell in its first argument memorized, and stores the spell's
-  slot (255 when none has it) and the member's position at the GBVM addresses in its second and third. }
 procedure EclSpell;
 var spellId: Byte;
     index: Byte;
@@ -1255,7 +1338,7 @@ begin
     index := 0;
     if (cursor^.spells <> nil) and (cursor^.enabled <> 0) then begin
       repeat
-        if cursor^.spells^.memorized[index] = spellId then
+        if Types.PBytes(cursor^.spells)^[index] = spellId then
           found := 1
         else if index < 73 then
           Inc(index)
@@ -1272,8 +1355,6 @@ begin
   EclMenu.WriteGbvm(countAddress, characterCount, GDVars.varTypes[3])
 end;
 
-{ CALL, opcode $2D: runs the engine routine its address selects: the display update, a step or fireball sound, the
-  forward move, the wall check overland, or the next frame of the picture box's animation. }
 procedure EclCall;
 var address: Word;
     selector: Word;
@@ -1282,21 +1363,16 @@ begin
   address := EclMenu.CombineBytesToWord(GDVars.varLo[1], GDVars.varHi[1]);
   selector := address - $7FFF;
   case selector of
-    { CALL $2DCB }
     $ADCC: EclMenu.UpdateEclDisplay;
-    { CALL $B203 }
     $3204: case GDVars.callSoundMode of
       8: Music.SendSoundCommand(GDConsts.stepSound);
       10: Music.SendSoundCommand(GDConsts.fireballSound)
       else Music.SendSoundCommand(GDConsts.stepSound)
     end;
-    { CALL $C01E }
     $401F: EclMenu.EclMoveForward;
-    { CALL $C018 }
     $4019: if GDVars.zone0^.inDungeon = 0 then
       GDVars.mapState.wallAhead := View3D.GetWallType(GDVars.mapState.x, GDVars.mapState.y,
                                                         GDVars.mapState.facing);
-    { CALL $6803: show the next animation frame }
     $E804: begin
       Mouse.HideMouse;
       Portrait.DisplayImageBuf(3, 3, True,
@@ -1348,7 +1424,6 @@ begin
   EclMenu.LoadEclVars(1);
   programId := EclMenu.GetEclVar(1);
   case programId of
-    { the party menu }
     0: begin
       CharGen.MainMenu;
       if (GDVars.pictureArchiveId <> 9) and (GDVars.zone0^.inDungeon = 0) and (GDVars.zone0^.wildOn = 1) and
@@ -1357,7 +1432,6 @@ begin
         MapCurs.DrawCursor
       end
     end;
-    { camp }
     9: begin
       savedIp := GDVars.eclIp;
       EclVm.EnterCamp;
@@ -1368,11 +1442,6 @@ begin
   GDVars.extendedMode := savedExtendedMode
 end;
 
-{ Empty routine with no callers. }
-procedure NoopEclVmG; begin end;
-
-{ DUMP, opcode $3E: removes the current character from the party, keeps the character that becomes current as the saved
-  character to restore, and redraws the party. }
 procedure EclDump;
 begin
   Inc(GDVars.eclIp);
@@ -1381,10 +1450,8 @@ begin
   CharHlp.DisplayParty(GDVars.currentCharacter)
 end;
 
-{ FIND SPECIAL, opcode $3F: clears the compare flags, then sets the equal flag when the current character has the effect
-  in its argument, the not-equal flag otherwise. }
 procedure EclFindSpecial;
-var scratch: Types.PEffect;
+var scratch: Pointer;
     effectId: Byte;
 begin
   FillChar(GDVars.cmpFlags, SizeOf(GDVars.cmpFlags), 0);
@@ -1396,12 +1463,10 @@ begin
     GDVars.cmpFlags[1] := True
 end;
 
-{ DESTROY ITEMS, opcode $40: removes each item matching its argument from every party member, unreadying it first when
-  it is readied, and recalculates each member; the current character is restored afterwards. }
 procedure EclDestroyItems;
 var itemType: Byte;
     cursor: Types.PCharacter;
-    savedCurrent: Types.PCharacter;
+    savedCurrent: Pointer;
     item: Types.PItem;
     nextItem: Types.PItem;
 begin
@@ -1416,7 +1481,7 @@ begin
       if itemType = item^.itemType then begin
         GDVars.currentCharacter := cursor;
         if item^.equipped <> 0 then ViewChar.ToggleReadyItem(item);
-        CharHlp.RemoveItem(cursor, item)
+        CharHlp.RemoveItem(cursor, Types.PItem(item))
       end;
       item := nextItem
     end;
@@ -1443,7 +1508,7 @@ begin
   GDVars.currentRow := 17;
   GDVars.currentColumn := 1;
   if wholeParty <> 0 then begin
-    TextRend.DisplayMessageWindow(1, 17, 38, 22, LightGreen, Black, True, EclVm.PARTY_GAINS_TEXT);
+    TextRend.DisplayMessageWindow(1, 17, 38, 22, LightGreen, Black, True, GDConsts.partyGainsText);
     TextRend.PauseOnly;
     cursor := GDVars.partyHead;
     while cursor <> nil do begin
@@ -1458,11 +1523,10 @@ begin
       cursor := cursor^.next
     end
   end else begin
-    { tested before cursor is set, so it holds whatever was left there }
     if cursor^.enabled <> 0 then begin
       cursor := GDVars.currentCharacter;
       TextRend.DisplayMessageWindow(1, 17, 38, 22, LightGreen, Black, True,
-                                    EclVm.GAINS_PREFIX + cursor^.name + EclVm.GAINS_SUFFIX);
+                                    GDConsts.congratulationsText + cursor^.name + GDConsts.gainsSuffix);
       TextRend.PauseOnly;
       classCount := 0;
       for index := 0 to 7 do
@@ -1485,14 +1549,13 @@ begin
   entry := EclMenu.GetEclVar(1);
   GDVars.currentRow := 17;
   GDVars.currentColumn := 1;
-  message := EclVm.JOURNAL_ENTRY_PREFIX + CharHlp.ByteToString(entry) + '.';
+  message := GDConsts.journalEntryPrefix + CharHlp.ByteToString(entry) + '.';
   TextRend.DisplayMessageWindow(1, 17, 38, 22, LightGreen, Black, True, message);
   choice := EclMenu.MenuHorizontalCharacterSelect('', GDConsts.pressToContinueMenu, LightMagenta, LightGreen, White,
                                                   True, Boolean(GDVars.eclGraphics));
   MenuCore.ClearBottomLine
 end;
 
-{ Opcode $23: clears the message window, updates the display and ends the script. }
 procedure EclRedrawExit;
 begin
   TextRend.ClearRect(1, 17, 38, 22);
@@ -1500,28 +1563,22 @@ begin
   EclVm.EclExit
 end;
 
-{ SOUND, opcode $2C: with bit 7 of its argument set, starts the music for the disk in the low 7 bits; cues 1..6 play
-  their sound from the cue table, and anything else does nothing. }
 procedure EclPlaySound;
 var cue: Byte;
 begin
   EclMenu.LoadEclVars(1);
   cue := EclMenu.GetEclVar(1);
   if cue > $7F then
-    { bit 7: a music file, not a cue }
     Music.StartMusic(cue and $7F)
   else if (cue < 7) and (cue > 0) then
     Music.SendSoundCommand(GDConsts.soundCueTable[cue])
 end;
 
-{ NO OPERATION, opcode $29: steps past the command. }
 procedure EclNoOperation;
 begin
   Inc(GDVars.eclIp)
 end;
 
-{ SHOP, opcode $3C: fills the treasure with the stock list its argument picks (1..8, any other value meaning 1), each
-  item identified, and opens the shop. }
 procedure EclShop;
 var stockList: Byte;
     itemId: Byte;
@@ -1545,7 +1602,6 @@ begin
     itemId := GDConsts.shopStockItems[index];
     if GDVars.itemTemplates[itemId].itemType <> 255 then begin
       Move(GDVars.itemTemplates[itemId], item.itemType, SizeOf(Types.TItemTemplate));
-      { bits 0..2 hide the name parts: stock sells identified }
       item.unidentifiedMask := item.unidentifiedMask and $F8;
       item.next := nil;
       item.inUse := 0;
@@ -1563,7 +1619,6 @@ begin
   Shop.ShopMainMenu
 end;
 
-{ Runs the handler for the current opcode. }
 procedure DispatchEclCommand;
 begin
   case GDVars.curOpcode of
@@ -1629,7 +1684,6 @@ var
   { Unused in this version; see the other implementations of this routine. }
   savedIp: Word;
 begin
-  { never read }
   GDVars.loopIndex := 1;
   GDVars.eclIp := entry;
   GDVars.eclStop := 0;
@@ -1641,17 +1695,11 @@ begin
   GDVars.eclStop := 0
 end;
 
-{ Finishes a NEWECL: for each newly loaded block it frees the animation, forgets the saved picture, refreshes the cell
-  event, clears the zone-1 leave-map word and runs the block's on-load entry script. If that loads no further block, it
-  records the block as the last one entered, redraws the map view (when the view's files are loaded and the party has
-  not just left the 3D view, or when it stays in the 3D view), runs two more of the block's entry scripts, then restores
-  and redisplays the selected character. A NEWECL in any of those scripts repeats it for the next block. The interface
-  state is remembered at the end. }
 procedure NewEclDone;
 begin
   repeat
     Portrait.FreeAnimation(GDVars.portraitAnimation);
-    GDVars.savedPictureName[0] := #0;
+    GDVars.savedPictureName := '';
     GDVars.savedPictureId := 255;
     GDVars.newEclFlag := 0;
     GDVars.mapState.event := View3D.GetMapEvent(GDVars.mapState.x, GDVars.mapState.y);
@@ -1741,8 +1789,7 @@ begin
       GDVars.savedCharacter := GDVars.currentCharacter;
       if GDVars.newEclFlag = 0 then GDVars.zone0^.scriptId := GDVars.currentScriptId;
       while ((GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex + $7C00] > 1) or (selection = 4)) and
-          (GDVars.partyDefeated = 0) and
-          (GDVars.restartLoop = 0) do begin
+          (GDVars.partyDefeated = 0) and (GDVars.restartLoop = 0) do begin
         if selection = 4 then
           EclVm.EnterCamp
         else begin

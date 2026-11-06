@@ -4,6 +4,10 @@
 unit Combat;
 interface
 
+{ Frees the spell clouds and the arena; a charmed member that is okay is set running while more than one monster stands;
+  removes each member's effects that end when it goes down, frees the moving icon and restores camp targeting. }
+procedure CombatDoneCleanup;
+
 { Runs a fight. Switches to the combat interface state and the combat cast-target menu, applies leadership, sets up the
   fight and fires each creature's condition-24 effects, then, unless a side starts empty, plays rounds: each round
   counts the sides, runs each creature's round-start setup, clears the surprise mask, sorts the creatures by initiative
@@ -12,9 +16,13 @@ interface
   turns slow text (the message-delay flag) back on. }
 procedure CombatMain;
 implementation
-uses C_Class, C_Cond, C_Dir, C_Effect, C_Ifc, C_Keys, C_Npc, C_Race, C_Side, C_Status, C_Terr, GDConsts, GDVars, Types,
-  CbtMap, CharHlp, MenuCore, CbtActs, FxEngine, Border, TextRend, GameTime, Magic, Blit, ViewChar, CombatSt, CombatAi,
-  Crt, GameIo;
+uses C_Class, C_Cond, C_Dir, C_Effect, C_Ifc, C_Npc, C_Race, C_Side, C_Status, C_Terr, GDConsts, GDVars, C_Keys, CbtMap,
+  CharHlp, MenuCore, CbtActs, FxEngine, Border, TextRend, GameTime, Magic, Blit, CombatSt, CombatAi, ViewChar, GameIo,
+  Crt, Types;
+
+procedure AgingDeaths; forward;
+
+procedure OrderCreatures; forward;
 
 procedure CreatureAction(cr: Types.PCharacter); forward;
 
@@ -32,19 +40,11 @@ procedure SpeedMenu; forward;
 
 procedure ClearTarget(cr: Types.PCharacter); forward;
 
-procedure OrderCreatures; forward;
-
-procedure AgingDeaths; forward;
-
-procedure CombatDoneCleanup; forward;
-
-{ Frees the spell clouds and the arena; a charmed member that is okay is set running while more than one monster stands;
-  removes each member's effects that end when it goes down, frees the moving icon and restores camp targeting. }
 procedure CombatDoneCleanup;
 var
   nxt: Types.PCloudNode;
   cur: Types.PCharacter;
-  eff: Types.PEffect;
+  eff: Pointer;
   { Unused in this version; see the other implementations of this routine. }
   effectScan: Word;
 begin
@@ -150,20 +150,18 @@ begin
           C_Race.HUMAN: if age > 120 then isOld := True
             else if age > 110 then isWarning := True
         end;
-        if isWarning then CharHlp.PrintCreatureMessage(cur, 'is looking very old', 10, True);
+        if isWarning then CharHlp.PrintCreatureMessage(cur, GDConsts.ageWarningMsg, 10, True);
         if isOld then begin
           row := 14;
           Border.ClearBox(23, row, 38, 21);
-          TextRend.DisplayMessageWindow(23, row, 38, 21, White, Black, True,
-                                        'The strain of this last battle has worn heavily on ' + name + '.  ');
+          TextRend.DisplayMessageWindow(23, row, 38, 21, White, Black, True, GDConsts.ageStrainMsg + name + '.  ');
           TextRend.DisplayAndPause(LightMagenta, Black, GDConsts.pressToContinue);
           Border.ClearBox(23, row, 38, 21);
-          if gender = 0 then pronoun := 'He' else pronoun := 'She';
-          TextRend.DisplayMessageWindow(23, row, 38, 21, White, Black, True,
-                                        pronoun + ' breathes deeply one last time and crumples to the ground.');
+          if gender = 0 then pronoun := GDConsts.heMsg else pronoun := GDConsts.sheMsg;
+          TextRend.DisplayMessageWindow(23, row, 38, 21, White, Black, True, pronoun + GDConsts.lastBreathMsg);
           TextRend.DisplayAndPause(LightMagenta, Black, GDConsts.pressToContinue);
           Border.ClearBox(23, row, 38, 21);
-          FxEngine.KillCreature(cur, C_Status.GONE, 'dies from age');
+          FxEngine.KillCreature(cur, C_Status.GONE, GDConsts.ageDeathMsg);
           p := GDVars.partyHead;
           while p <> nil do begin
             if (p^.enabled = 1) and (p^.status = C_Status.OKAY) and (p^.side <> C_Side.ENEMY) then begin
@@ -172,11 +170,10 @@ begin
             p := p^.next
           end;
           case count of
-            0: message := 'Sadly, no party member witnesses the passing of the champion.';
-            1: message := witness^.name + ' weeps at the loss of such a venerable companion.'
+            0: message := GDConsts.noWitnessMsg;
+            1: message := witness^.name + GDConsts.oneWitnessMsg
           else
-            message :=
-              ' The remaining party members are overcome with grief as they search ' + name + '''s body for valuables.'
+            message := GDConsts.manyWitnessMsg + name + GDConsts.bodySearchMsg
           end;
           Border.ClearBox(23, row, 38, 21);
           TextRend.DisplayMessageWindow(23, row, 38, 21, Yellow, Black, True, message);
@@ -203,7 +200,7 @@ var
   j: Byte;
 begin
   cur := GDVars.partyHead;
-  FillChar(GDVars.combatOrder, SizeOf(GDVars.combatOrder), 0);
+  FillChar(GDVars.combatOrder[1], SizeOf(GDVars.combatOrder), 0);
   while cur <> nil do begin
     i := 1;
     more := True;
@@ -260,7 +257,8 @@ begin
     FxEngine.TriggerEffectsWithCondition(C_Cond.ACTION_START, cr);
     if cr^.combat^.spellCast = 0 then FxEngine.TriggerEffectsWithCondition(21, cr);
     if cr^.combat^.initiative > 0 then begin
-      if cr^.quickFight <> 0 then CombatAi.CombatAiControl(cr)
+      if cr^.quickFight <> 0 then
+        CombatAi.CombatAiControl(Types.PCharacter(cr))
       else Combat.ManualControl(cr)
     end;
     CbtMap.RedrawArenaCell(CbtMap.CombatCellX(cr), CbtMap.CombatCellY(cr))
@@ -280,7 +278,6 @@ var
   aimBuf: array[1..7] of Byte;
   spell: Byte;
   resultByte: Byte absolute done;
-  aimInfo: Types.TAimResult absolute aimBuf;
 begin
   if cr^.enabled <> 0 then begin
     if cr^.combat^.spellCast > 0 then begin
@@ -296,7 +293,7 @@ begin
         if GDVars.menuExtendedKey = 0 then begin
           case key of
             #0: Combat.MoveMenu(cr, #255, done);
-            #1: CbtActs.CombatAimMenu(cr, 255, GDConsts.attackAimMode, 0, 1, resultByte, aimInfo);
+            #1: CbtActs.CombatAimMenu(cr, 255, GDConsts.attackAimMode, 0, 1, resultByte, aimBuf);
             #2: begin
                  GDVars.selectedChoice := 2;
                  ViewChar.UseItemMenu(done);
@@ -313,8 +310,9 @@ begin
                end;
             #5: done := CharHlp.Guard(cr);
             #6: begin
-                 Combat.ClearTarget(cr); MenuCore.ClearBottomLine; GameIo.FlushKeys; Delay(200);
-                 done := True; CombatAi.CombatAiControl(cr)
+                 Combat.ClearTarget(cr); MenuCore.ClearBottomLine; GameIo.FlushKeys;
+                 Delay(200);
+                 done := True; CombatAi.CombatAiControl(Types.PCharacter(cr))
                end;
             #7: begin
                  cr^.combat^.initiative := 1;
@@ -359,7 +357,7 @@ begin
                  end;
             #45: if CbtActs.VictoryCheat then begin
                     CbtMap.DisplayMapViewCentered(cr, 3, False); done := True
-                  end else CharHlp.PrintBottomLine('That doesn''t work')
+                  end
           end
         end;
         if not done then begin
@@ -439,11 +437,12 @@ begin
     Inc(n);
     p := p^.next
   end;
-  if CharHlp.BandageDying(False) then CharHlp.PrintBottomLine('Your Teammate is Dying');
+  if CharHlp.BandageDying(False) then CharHlp.PrintBottomLine(GDConsts.teammateDying);
   CharHlp.CountTeams;
   CbtMap.ScrollView(GDVars.arena^.ox + 3, GDVars.arena^.oy + 3, 255, C_Dir.CENTER);
   if (GDVars.teamCount[C_Side.PLAYER] = 0) or (GDVars.teamCount[C_Side.ENEMY] = 0) or
-      (GDVars.roundNumber >= GDVars.roundLimit) then done := True;
+      (GDVars.roundNumber >= GDVars.roundLimit)
+      then done := True;
   if (GDVars.teamCount[C_Side.PLAYER] > 0) and (GDVars.teamCount[C_Side.ENEMY] = 0) and
       (GDVars.demoMode = 0) then
     if Char(MenuCore.YesNoMenu(GDConsts.continueBattle, GDConsts.noKey)) = Chr(GDConsts.yesKey) then done := False
@@ -520,10 +519,9 @@ begin
             #1: done := False
           end
         end else begin
-          if Odd(dir) then cost := GDConsts.combatTables.terrain[terrIdx].cost * 3
-          else cost := GDConsts.combatTables.terrain[terrIdx].cost * 2;
-          if GDConsts.combatTables.terrain[terrIdx].cost =
-              C_Terr.TERRAIN_IMPASSABLE then cost := C_Terr.TERRAIN_IMPASSABLE;
+          if Odd(dir) then cost := GDConsts.terrain[terrIdx].cost * 3
+          else cost := GDConsts.terrain[terrIdx].cost * 2;
+          if GDConsts.terrain[terrIdx].cost = C_Terr.TERRAIN_IMPASSABLE then cost := C_Terr.TERRAIN_IMPASSABLE;
           if cost > cr^.combat^.movement then CharHlp.PrintBottomLine(GDConsts.cantGoThere)
           else begin
             CbtActs.AttacksOfOpportunity(cr, dir);
@@ -554,7 +552,7 @@ procedure MeleeAttack(cr, foe: Types.PCharacter; var done: Boolean);
 var resultByte: Byte absolute done;
 begin
   if CharHlp.HasRangedWeapon(cr) and not CharHlp.HasThrowableWeapon(cr) then
-    CharHlp.PrintBottomLine('Not with that weapon')
+    CharHlp.PrintBottomLine(GDConsts.notWithWeapon)
   else if CbtActs.CheckAttackAlly(cr, foe) then begin
     cr^.combat^.target := foe;
     if CbtActs.SweepAttack(cr, foe) then done := True

@@ -21,7 +21,7 @@ procedure ResolveMovement;
 function MapMainMenu: Char;
 implementation
 uses C_Dir, C_Ifc, C_Keys, C_Status, GDConsts, GDVars, CharHlp, MenuCore, Mouse, TextRend, Crt,
-  Border, View3D, Music, GameTime, Camp, ViewChar, MapCurs, Portrait;
+  Border, View3D, Music, GameTime, MapCurs, Portrait, Camp, ViewChar;
 
 { Clears the zone's leave-map flag, then, when the barrier ahead lets the party through and the step would leave the
   16x16 map, clamps the position to the edge and sets the flag. }
@@ -34,8 +34,7 @@ begin
   nx := GDVars.mapState.x; ny := GDVars.mapState.y; face := GDVars.mapState.facing;
   GDVars.zone1^.leaveMap[GDConsts.leaveMapIndex + $7C00] := 0;
   if View3D.GetBarrierType(nx, ny, face) <> 0 then begin
-    Inc(nx, GDConsts.combatTables.directionX[face]);
-    Inc(ny, GDConsts.combatTables.directionY[face]);
+    Inc(nx, GDConsts.directionX[face]); Inc(ny, GDConsts.directionY[face]);
     if nx > 15 then begin GDVars.mapState.x := 15; GDVars.zone1^.leaveMap[GDConsts.leaveMapIndex + $7C00] := 1 end;
     if nx < 0 then begin GDVars.mapState.x := 0; GDVars.zone1^.leaveMap[GDConsts.leaveMapIndex + $7C00] := 1 end;
     if ny > 15 then begin GDVars.mapState.y := 15; GDVars.zone1^.leaveMap[GDConsts.leaveMapIndex + $7C00] := 1 end;
@@ -49,8 +48,8 @@ procedure MovePartyForward3D;
 begin
   Music.SendSoundCommand(GDConsts.stepSound);
   Delay(50);
-  Inc(GDVars.mapState.x, GDConsts.combatTables.directionX[GDVars.mapState.facing]);
-  Inc(GDVars.mapState.y, GDConsts.combatTables.directionY[GDVars.mapState.facing]);
+  Inc(GDVars.mapState.x, GDConsts.directionX[GDVars.mapState.facing]);
+  Inc(GDVars.mapState.y, GDConsts.directionY[GDVars.mapState.facing]);
   if GDVars.mapState.x < 0 then GDVars.mapState.x := 15;
   if GDVars.mapState.x > 15 then GDVars.mapState.x := 0;
   if GDVars.mapState.y < 0 then GDVars.mapState.y := 15;
@@ -73,8 +72,8 @@ var
 begin
   Mouse.HideMouse; MapCurs.RestoreCursorBackground;
   GDVars.zone0^.prevX := GDVars.zone0^.wildX; GDVars.zone0^.prevY := GDVars.zone0^.wildY;
-  nx := GDVars.zone0^.wildX + GDConsts.combatTables.directionX[GDVars.mapState.facing];
-  ny := GDVars.zone0^.wildY + GDConsts.combatTables.directionY[GDVars.mapState.facing];
+  nx := GDVars.zone0^.wildX + GDConsts.directionX[GDVars.mapState.facing];
+  ny := GDVars.zone0^.wildY + GDConsts.directionY[GDVars.mapState.facing];
   if nx < 0 then nx := 0; if nx > 37 then nx := 37;
   if ny < 0 then ny := 0; if ny > 14 then ny := 14;
   GDVars.zone0^.wildX := nx; GDVars.zone0^.wildY := ny;
@@ -117,27 +116,24 @@ begin
               #2: if GDVars.currentCharacter^.status = C_Status.OKAY then Camp.NoncombatCastMenu;
               #3: ViewChar.ViewCharMenu(viewFlag);
               #4: done := True;
-              #5: begin
-                GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex +
-                                            $7C00] := GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex + $7C00] xor
-                  GDConsts.searchMask[0];
-                CharHlp.PrintMiscInfo
-              end;
+              #5: begin GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex +
+                                                    $7C00] := GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex +
+                                                                                          $7C00] xor
+                GDConsts.searchMask[0]; CharHlp.PrintMiscInfo end;
               #6: begin
                 GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex +
                                             $7C00] := GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex + $7C00] or
-                  $02;
-                CharHlp.PrintMiscInfo;
+                  $02; CharHlp.PrintMiscInfo;
                 GameTime.AdvanceTime(1, 2); GDVars.eclIp := GDVars.eclEntryPoints.entryAfterMove; done := True
               end
             end
           end else begin
-            CharHlp.DisplayRoster(GDVars.currentCharacter, False); ViewChar.SelectAdjacentCharacter(c);
+            CharHlp.DisplayRoster(GDVars.currentCharacter, False);
+            ViewChar.SelectAdjacentCharacter(c);
             CharHlp.DisplayRoster(GDVars.currentCharacter, True); CharHlp.PrintMiscInfo
           end
         end else begin
-          FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF);
-          MenuCore.EnableChoices(0);
+          FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF); MenuCore.EnableChoices(0);
           c := Char(MenuCore.MenuHorizontal(GDConsts.emptyQuery, GDConsts.exitMenu, 1, 0));
           if GDVars.menuExtendedKey = 0 then begin
             if c = #0 then GDVars.extendedMode := 0
@@ -191,8 +187,8 @@ begin
             end
           end
         end else begin
-          FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF);
-          GDVars.enabledChoices[0].ordinal := 0;
+          FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices),
+                   $FF); GDVars.enabledChoices[0].ordinal := 0;
           c := Char(MenuCore.MenuHorizontal(GDConsts.emptyQuery, GDConsts.exitMenu, 1, 0));
           if GDVars.menuExtendedKey = 0 then begin if c = #0 then GDVars.extendedMode := 0 end
           else begin
@@ -200,10 +196,12 @@ begin
             case c of
               C_Keys.UP: GDVars.mapState.facing := C_Dir.NORTH; C_Keys.PAGE_UP: GDVars.mapState.facing :=
                 C_Dir.NORTHEAST; C_Keys.RIGHT:
-                  GDVars.mapState.facing := C_Dir.EAST; C_Keys.PAGE_DOWN: GDVars.mapState.facing := C_Dir.SOUTHEAST;
+                  GDVars.mapState.facing := C_Dir.EAST;
+                  C_Keys.PAGE_DOWN: GDVars.mapState.facing := C_Dir.SOUTHEAST;
               C_Keys.DOWN: GDVars.mapState.facing := C_Dir.SOUTH; C_Keys.END_KEY: GDVars.mapState.facing :=
                 C_Dir.SOUTHWEST; C_Keys.LEFT:
-                  GDVars.mapState.facing := C_Dir.WEST; C_Keys.HOME: GDVars.mapState.facing := C_Dir.NORTHWEST;
+                  GDVars.mapState.facing := C_Dir.WEST;
+                  C_Keys.HOME: GDVars.mapState.facing := C_Dir.NORTHWEST;
               C_Keys.ESCAPE: GDVars.extendedMode := 0
             end;
             CharHlp.PrintMiscInfo
@@ -226,14 +224,15 @@ begin
     C_Ifc.VIEW_3D: begin
       if GDVars.zone1^.moveLocked[GDConsts.moveLockedIndex + $7C00] < 255 then begin
         GDVars.forceMapRedraw := 1;
-        if View3D.GetBarrierType(GDVars.mapState.x, GDVars.mapState.y,
-                                 GDVars.mapState.facing) = 1 then begin moved := True; Explore.MovePartyForward3D end;
+        if View3D.GetBarrierType(GDVars.mapState.x, GDVars.mapState.y, GDVars.mapState.facing) =
+            1 then begin moved := True;
+            Explore.MovePartyForward3D end;
         CharHlp.PrintMiscInfo
       end else GDVars.zone1^.moveLocked[GDConsts.moveLockedIndex + $7C00] := 0
     end;
     C_Ifc.OVERLAND: begin
-      if GDVars.zone1^.moveLocked[GDConsts.moveLockedIndex +
-                                    $7C00] < 255 then begin Explore.MovePartyWilderness; CharHlp.PrintMiscInfo end
+      if GDVars.zone1^.moveLocked[GDConsts.moveLockedIndex + $7C00] <
+          255 then begin Explore.MovePartyWilderness; CharHlp.PrintMiscInfo end
     end else GDVars.zone1^.moveLocked[GDConsts.moveLockedIndex + $7C00] := 0
   end;
   Portrait.FreeAnimation(GDVars.portraitAnimation);

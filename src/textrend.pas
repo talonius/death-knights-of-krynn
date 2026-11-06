@@ -1,10 +1,10 @@
 { TextRend -- text on the graphics screen, in the 8x8 game font on a 40x25 cell grid: a character through TEXTREND.OBJ's
   CGA, EGA or Tandy blitter, strings, the word-wrapping message window, the message-line prompts and pauses, typed
   input, and clearing the screen or a rectangle of cells. }
-{$O+,F+,S-,R-,V-,B-,I-}
+{$O+,F+}
 unit TextRend;
 interface
-uses C_Keys, C_Ega, C_Video, GDConsts, GDVars, Mouse, DaxIo, GameIo, Crt, Dos, Types;
+uses DaxIo, Crt, C_Keys, C_Ega, C_Video, Dos, GameIo, Mouse, GDConsts, GDVars, Types;
 
 { Resets the EGA graphics controller (registers 0 to 5 to 0, color don't-care $0F, bit mask $FF) and enables writes to
   the four planes. }
@@ -57,7 +57,7 @@ procedure PrintSpaces(col, row, color, count: Byte);
   @param(fg The text color.)
   @param(bg The background color.)
   @param(source The text.) }
-procedure DisplayString(col, row, fg, bg: Byte; source: String);
+procedure DisplayString(col, row, fg, bg: Byte; source: string);
 
 { Writes a string word-wrapped into a window, from the text cursor when it is inside the window, else, or after clearing
   when asked, from the top left. Punctuation stays with the word next to it. Characters appear one by one with a delay
@@ -73,7 +73,7 @@ procedure DisplayString(col, row, fg, bg: Byte; source: String);
   @param(bg The background color.)
   @param(clearFirst True to clear the window and start at its top left.)
   @param(source The text.) }
-procedure DisplayMessageWindow(ulCol, ulRow, lrCol, lrRow, fg, bg: Byte; clearFirst: Boolean; source: String);
+procedure DisplayMessageWindow(ulCol, ulRow, lrCol, lrRow, fg, bg: Byte; clearFirst: Boolean; source: string);
 
 { Shows a prompt on the bottom row and reads text from the keyboard, echoed in white: a space through z is added while
   there is room and backspace deletes, until Enter or Escape, or after the first key while the demo runs. The row is
@@ -122,10 +122,10 @@ procedure PauseOnly;
   @param(lrRow Bottom row.) }
 procedure ClearRect(ulCol, ulRow, lrCol, lrRow: ShortInt);
 
-{ Pads a String[40] with spaces on the left to n characters.
-  @param(source The string, padded in place.)
-  @param(n Length to pad to.) }
-procedure RightAlignString(var source; n: Byte);
+{ Right-aligns a string in a field by adding spaces on the left.
+  @param(s The string, padded in place.)
+  @param(n The field width.) }
+procedure RightAlignString(var s: Types.TString40; n: Byte);
 implementation
 var
   cgaBank0: array[0..255] of array[0..39] of Word absolute C_Video.GFX_BANK0_SEG: $0000;
@@ -142,24 +142,24 @@ var
   @param(row The cell row.)
   @param(fg The color of the glyph's set pixels.)
   @param(bg The color of its clear pixels.)
-  @param(charIdx Unused.) }
-procedure CgaGlyph(col, row: Word; fg, bg, charIdx: Byte); external;
+  @param(glyphIdx Unused.) }
+procedure RenderCharCga(col, row: Word; fg, bg, glyphIdx: Byte); external;
 
 { Draws one character cell on EGA from the glyph rows that RenderChar staged.
   @param(col The cell column.)
   @param(row The cell row.)
   @param(fg The color of the glyph's set pixels.)
   @param(bg The color of its clear pixels.)
-  @param(charIdx Unused.) }
-procedure EgaGlyph(col, row: Word; fg, bg, charIdx: Byte); external;
+  @param(glyphIdx Unused.) }
+procedure RenderCharEga(col, row: Word; fg, bg, glyphIdx: Byte); external;
 
 { Draws one character cell on Tandy from the glyph rows that RenderChar staged.
   @param(col The cell column.)
   @param(row The cell row.)
   @param(fg The color of the glyph's set pixels.)
   @param(bg The color of its clear pixels.)
-  @param(charIdx Unused.) }
-procedure TandyGlyph(col, row: Word; fg, bg, charIdx: Byte); external;
+  @param(glyphIdx Unused.) }
+procedure RenderCharTandy(col, row: Word; fg, bg, glyphIdx: Byte); external;
 {$F+}
 
 procedure ResetEgaGc;
@@ -209,14 +209,14 @@ begin
   rowCount := (lrRow - ulRow + 1) * 8 - 1;
   TextRend.SetupEgaOtherPage(page);
   TextRend.ResetEgaGc;
-  Port[GDConsts.graphicsAddressPort] := GDConsts.graphicsModeRegister; Port[GDConsts.graphicsDataPort] :=
-    GDConsts.writeMode2;
+  Port[GDConsts.graphicsAddressPort] := GDConsts.graphicsModeRegister;
+  Port[GDConsts.graphicsDataPort] := GDConsts.writeMode2;
   for i := 0 to rowCount do begin
     FillChar(Mem[GDVars.otherPageSegment: dstOff], lrCol - ulCol + 1, color);
     Inc(dstOff, 40);
   end;
-  Port[GDConsts.graphicsAddressPort] := GDConsts.graphicsModeRegister; Port[GDConsts.graphicsDataPort] :=
-    GDConsts.writeMode0;
+  Port[GDConsts.graphicsAddressPort] := GDConsts.graphicsModeRegister;
+  Port[GDConsts.graphicsDataPort] := GDConsts.writeMode0;
   GDVars.otherEgaPage := savedPage;
   TextRend.SetupEgaOtherPage(GDVars.otherEgaPage);
 end;
@@ -264,15 +264,21 @@ begin
     charIdx := ch;
   Move(GDVars.gameFont^[charIdx], GDVars.currentGlyph, SizeOf(GDVars.currentGlyph));
   case GDVars.displayMode of
-    Types.Cga: for i := 1 to count do begin
-         TextRend.CgaGlyph(col, row, fg, bg, charIdx); Inc(col);
-       end;
-    Types.Ega: for i := 1 to count do begin
-         TextRend.EgaGlyph(col, row, fg, bg, charIdx); Inc(col);
-       end;
-    Types.Tandy: for i := 1 to count do begin
-         TextRend.TandyGlyph(col, row, fg, bg, charIdx); Inc(col);
-       end;
+    Types.Cga:
+      for i := 1 to count do begin
+        TextRend.RenderCharCga(col, row, fg, bg, charIdx);
+        Inc(col);
+      end;
+    Types.Ega:
+      for i := 1 to count do begin
+        TextRend.RenderCharEga(col, row, fg, bg, charIdx);
+        Inc(col);
+      end;
+    Types.Tandy:
+      for i := 1 to count do begin
+        TextRend.RenderCharTandy(col, row, fg, bg, charIdx);
+        Inc(col);
+      end;
   end;
 end;
 
@@ -284,7 +290,7 @@ begin
   Mouse.ShowMouse;
 end;
 
-procedure DisplayString(col, row, fg, bg: Byte; source: String);
+procedure DisplayString(col, row, fg, bg: Byte; source: string);
 var
   len: Byte;
   i: Byte;
@@ -299,7 +305,7 @@ begin
   Mouse.ShowMouse;
 end;
 
-procedure DisplayMessageWindow(ulCol, ulRow, lrCol, lrRow, fg, bg: Byte; clearFirst: Boolean; source: String);
+procedure DisplayMessageWindow(ulCol, ulRow, lrCol, lrRow, fg, bg: Byte; clearFirst: Boolean; source: string);
 var
   len: Byte;
   { Unused in this version; see the other implementations of this routine. }
@@ -330,31 +336,42 @@ begin
   if (ulCol > 39) or (ulRow > 24) or (lrCol > 39) or (lrRow > 39) then Exit;
   if (GDVars.currentColumn < ulCol) or (GDVars.currentColumn > lrCol) or (GDVars.currentRow < ulRow) or
       (GDVars.currentRow > lrRow) then begin
-    GDVars.currentColumn := ulCol; GDVars.currentRow := ulRow;
+    GDVars.currentColumn := ulCol;
+    GDVars.currentRow := ulRow;
   end;
   if clearFirst then begin
     TextRend.ClearRect(ulCol, ulRow, lrCol, lrRow);
-    GDVars.currentColumn := ulCol; GDVars.currentRow := ulRow;
+    GDVars.currentColumn := ulCol;
+    GDVars.currentRow := ulRow;
   end;
   idx := 1;
   len := Length(source);
-  if len = 0 then begin Mouse.ShowMouse; Exit; end;
+  if len = 0 then begin
+    Mouse.ShowMouse;
+    Exit;
+  end;
   width := lrCol - ulCol + 1;
   repeat
     lineEnd := idx;
-    while (lineEnd < len) and (source[lineEnd] in GDConsts.breakChars) do Inc(lineEnd);
-    while (lineEnd < len) and not (source[lineEnd] in GDConsts.breakChars) and (source[lineEnd] <> ' ') do Inc(lineEnd);
+    while (lineEnd < len) and (source[lineEnd] in GDConsts.breakChars) do
+      Inc(lineEnd);
+    while (lineEnd < len) and not (source[lineEnd] in GDConsts.breakChars) and (source[lineEnd] <> ' ') do
+      Inc(lineEnd);
     if source[lineEnd] <> ' ' then
-      while (lineEnd + 1 < len) and (source[lineEnd + 1] in GDConsts.breakChars) do Inc(lineEnd);
+      while (lineEnd + 1 < len) and (source[lineEnd + 1] in GDConsts.breakChars) do
+        Inc(lineEnd);
     if lineEnd - idx + GDVars.currentColumn > lrCol then begin
       if (lineEnd - idx + GDVars.currentColumn = lrCol) and (source[lineEnd] = ' ') then begin
-        Dec(lineEnd); PrintCharInWindow;
+        Dec(lineEnd);
+        PrintCharInWindow;
       end;
-      GDVars.currentColumn := ulCol; Inc(GDVars.currentRow);
+      GDVars.currentColumn := ulCol;
+      Inc(GDVars.currentRow);
       FindNewIndex;
       if (GDVars.currentRow > lrRow) and (idx < len) then begin
-        GDVars.currentColumn := ulCol; GDVars.currentRow := ulRow;
-        TextRend.DisplayAndPause(LightMagenta, Black, 'Press any key to continue');
+        GDVars.currentColumn := ulCol;
+        GDVars.currentRow := ulRow;
+        TextRend.DisplayAndPause(LightMagenta, Black, GDConsts.pressAnyKey);
         GameIo.FlushKeys;
         TextRend.ClearRect(ulCol, ulRow, lrCol, lrRow);
         PrintCharInWindow;
@@ -363,7 +380,8 @@ begin
       PrintCharInWindow;
   until idx > len;
   if GDVars.currentColumn > lrCol then begin
-    GDVars.currentColumn := ulCol; Inc(GDVars.currentRow);
+    GDVars.currentColumn := ulCol;
+    Inc(GDVars.currentRow);
   end;
   Mouse.ShowMouse;
 end;
@@ -371,7 +389,7 @@ end;
 function ReadString(query: Types.TString40; fg, bg, maxLen: Byte): Types.TString40;
 var
   col: Byte;
-  reply: String;
+  reply: string;
   key: Char;
 begin
   TextRend.PrintSpaces(GDConsts.messageColumn, GDConsts.messageRow, Black, GDConsts.screenWidth);
@@ -443,19 +461,19 @@ procedure ClearScreen;
 begin
   case GDVars.displayMode of
     Types.Cga: begin
-         FillChar(cgaBank1, 8000, 0);
-         FillChar(cgaBank0, 8000, 0);
-       end;
+      FillChar(cgaBank1, 8000, 0);
+      FillChar(cgaBank0, 8000, 0);
+    end;
     Types.Ega: begin
-         TextRend.FillRectEga(0, 0, 39, 24, 0, Black);
-         TextRend.FillRectEga(0, 0, 39, 24, 1, Black);
-       end;
+      TextRend.FillRectEga(0, 0, 39, 24, 0, Black);
+      TextRend.FillRectEga(0, 0, 39, 24, 1, Black);
+    end;
     Types.Tandy: begin
-         FillChar(tandyBank0, 8000, 0);
-         FillChar(tandyBank1, 8000, 0);
-         FillChar(tandyBank2, 8000, 0);
-         FillChar(tandyBank3, 8000, 0);
-       end;
+      FillChar(tandyBank0, 8000, 0);
+      FillChar(tandyBank1, 8000, 0);
+      FillChar(tandyBank2, 8000, 0);
+      FillChar(tandyBank3, 8000, 0);
+    end;
   end;
 end;
 
@@ -483,36 +501,35 @@ begin
   Mouse.HideMouse;
   case GDVars.displayMode of
     Types.Cga: begin
-         firstRow := ulRow * 4;
-         lastRow := lrRow * 4 + 3;
-         byteCount := (lrCol - ulCol + 1) * 2;
-         for row := firstRow to lastRow do begin
-           FillChar(cgaBank0[row][ulCol], byteCount, 0);
-           FillChar(cgaBank1[row][ulCol], byteCount, 0);
-         end;
-       end;
+      firstRow := ulRow * 4;
+      lastRow := lrRow * 4 + 3;
+      byteCount := (lrCol - ulCol + 1) * 2;
+      for row := firstRow to lastRow do begin
+        FillChar(cgaBank0[row][ulCol], byteCount, 0);
+        FillChar(cgaBank1[row][ulCol], byteCount, 0);
+      end;
+    end;
     Types.Ega: begin
-         TextRend.FillRectEga(ulCol, ulRow, lrCol, lrRow, 0, Black);
-         TextRend.FillRectEga(ulCol, ulRow, lrCol, lrRow, 1, Black);
-       end;
+      TextRend.FillRectEga(ulCol, ulRow, lrCol, lrRow, 0, Black);
+      TextRend.FillRectEga(ulCol, ulRow, lrCol, lrRow, 1, Black);
+    end;
     Types.Tandy: begin
-         firstRow := ulRow * 2;
-         lastRow := lrRow * 2 + 1;
-         firstByteColumn := ulCol * 4;
-         byteCount := (lrCol - ulCol + 1) * 4;
-         for row := firstRow to lastRow do begin
-           FillChar(tandyBank0[row][firstByteColumn], byteCount, 0);
-           FillChar(tandyBank1[row][firstByteColumn], byteCount, 0);
-           FillChar(tandyBank2[row][firstByteColumn], byteCount, 0);
-           FillChar(tandyBank3[row][firstByteColumn], byteCount, 0);
-         end;
-       end;
+      firstRow := ulRow * 2;
+      lastRow := lrRow * 2 + 1;
+      firstByteColumn := ulCol * 4;
+      byteCount := (lrCol - ulCol + 1) * 4;
+      for row := firstRow to lastRow do begin
+        FillChar(tandyBank0[row][firstByteColumn], byteCount, 0);
+        FillChar(tandyBank1[row][firstByteColumn], byteCount, 0);
+        FillChar(tandyBank2[row][firstByteColumn], byteCount, 0);
+        FillChar(tandyBank3[row][firstByteColumn], byteCount, 0);
+      end;
+    end;
   end;
   Mouse.ShowMouse;
 end;
 
-procedure RightAlignString(var source; n: Byte);
-var s: Types.TString40 absolute source;
+procedure RightAlignString(var s: Types.TString40; n: Byte);
 begin
   while Length(s) < n do
     s := ' ' + s;

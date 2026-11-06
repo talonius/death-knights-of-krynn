@@ -2,7 +2,7 @@
   then asks Play or Demo, answering itself after 30 seconds. Each pass of the main loop stops the music; a demo runs
   from disk 2 with slow text, a real game goes through CharGen's party menu and the journal-word copy protection --
   aborting unless CopyProt passes and sets all four GDVars.protectionMarks -- and draws the interface: the row divider
-  on the overland map while zone0^.wildOn is 1, else the inset picture. EclVm.GameLoop then plays until the party
+  on the overland map while GDVars.zone0^.wildOn is 1, else the inset picture. EclVm.GameLoop then plays until the party
   leaves, ResetGameState resets the session, and after a demo the title runs again and the Play/Demo menu returns with a
   10-second timeout. It repeats until GDConsts.gameDone is set. }
 {$F+,O+}
@@ -54,50 +54,50 @@ uses
 {$O MapTiles}
 {$O Sym8x8}
 begin
-  InitializeGame;
-  LoadDriverCode;
-  Introduction;
+  GameInit.InitializeGame;
+  Music.LoadDriverCode;
+  Intro.Introduction;
   GDVars.menuTimeout := 3000;
   GDVars.menuTimeoutKey := 1;
-  EnableChoices(1);
-  GDVars.menuResult := MenuHorizontal(GDConsts.gameTitle, GDConsts.playDemoMenu, 0, 0);
+  MenuCore.EnableChoices(1);
+  GDVars.menuResult := MenuCore.MenuHorizontal(GDConsts.gameTitle, GDConsts.playDemoMenu, 0, 0);
   GDVars.menuTimeout := 0;
   GDVars.menuTimeoutKey := 1;
   if GDVars.menuResult = 1 then GDVars.demoMode := 1;
   repeat
-    StopMusic;
+    Music.StopMusic;
     if GDVars.demoMode <> 0 then begin
       GDVars.diskNumber := 2;
       GDVars.textDelay := 9;
     end else
       GDVars.diskNumber := 1;
     if GDVars.demoMode = 0 then begin
-      MainMenu;
-      if Ord(CopyProtection) <> 1 then ExitGame;
+      CharGen.MainMenu;
+      if Ord(CopyProt.CopyProtection) <> 1 then GameIo.ExitGame;
       for GDVars.checkIdx := 1 to 4 do
-        if GDVars.protectionMarks[GDVars.checkIdx] = 0 then ExitGame;
+        if GDVars.protectionMarks[GDVars.checkIdx] = 0 then GameIo.ExitGame;
       if (GDVars.interfaceState = C_Ifc.OVERLAND) and (GDVars.zone0^.wildOn = 1) then
-        DrawRowDivider
+        Border.DrawRowDivider
       else
-        DrawViewFrame;
-      DisplayParty(GDVars.currentCharacter);
+        Border.DrawViewFrame;
+      CharHlp.DisplayParty(GDVars.currentCharacter);
     end;
-    SetViewColors(GDVars.paletteSky, GDVars.paletteCeil, GDVars.paletteFloor, GDVars.paletteWall);
-    GameLoop;
-    ResetGameState;
+    View3D.SetViewColors(GDVars.paletteSky, GDVars.paletteCeil, GDVars.paletteFloor, GDVars.paletteWall);
+    EclVm.GameLoop;
+    GameInit.ResetGameState;
     if GDVars.demoMode <> 0 then begin
-      SendSoundCommand(GDConsts.soundReset);
-      Introduction;
-      RestoreSoundDriver;
-      FlushKeys;
+      Music.SendSoundCommand(GDConsts.soundReset);
+      Intro.Introduction;
+      Music.RestoreSoundDriver;
+      GameIo.FlushKeys;
       GDVars.menuTimeout := 1000;
       GDVars.menuTimeoutKey := 1;
-      EnableChoices(1);
-      GDVars.menuResult := MenuHorizontal(GDConsts.gameTitle, GDConsts.playDemoMenu, 0, 0);
+      MenuCore.EnableChoices(1);
+      GDVars.menuResult := MenuCore.MenuHorizontal(GDConsts.gameTitle, GDConsts.playDemoMenu, 0, 0);
       GDVars.menuTimeout := 0;
       GDVars.menuTimeoutKey := 0;
       GDVars.demoMode := Ord(GDVars.menuResult = 1);
-      SendSoundCommand(GDConsts.soundOff);
+      Music.SendSoundCommand(GDConsts.soundOff);
     end;
   until GDConsts.gameDone <> 0;
 end.

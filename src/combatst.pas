@@ -10,8 +10,8 @@ interface
   effects. }
 procedure CombatStart;
 implementation
-uses C_Cond, C_Dir, C_Ifc, C_Npc, C_Side, C_Terr, Crt, GDConsts, GDVars, Types, FxEngine, CbtMap, MenuCore,
-  TextRend, CbtActs, Blit, View3D, MapTiles, CharHlp, GameIo, CharGen, Portrait;
+uses C_Cond, C_Dir, C_Ifc, C_Npc, C_Side, C_Terr, Crt, GDConsts, GDVars, FxEngine, CbtMap, GameIo,
+  CbtActs, Blit, View3D, MapTiles, CharHlp, CharGen, Portrait, MenuCore, TextRend, Types;
 
 { Sets one arena cell in the current dungeon cell's skewed six-by-five block, ignoring cells off the 50x25 arena.
   @param(yOffset Column within the block.)
@@ -52,7 +52,7 @@ begin
       cellX := GDVars.combatOriginX * 6 + GDVars.combatOriginY * 5 + 21 + xIndex + yIndex;
       cellY := GDVars.combatOriginY * 5 + 10 + yIndex;
       if (cellX >= 0) and (cellX <= 49) and (cellY >= 0) and (cellY <= 24) then
-        if GDConsts.combatTables.terrain[GDVars.arena^.cells[cellY, cellX]].code = 22 then
+        if GDConsts.terrain[GDVars.arena^.cells[cellY, cellX]].code = 22 then
           if (GDVars.featureSource <> 0) and (GDVars.allowFeatures <> 0) then
             if FxEngine.RollDice(1, 10) <= 5 then begin
               GDVars.arena^.cells[cellY, cellX] := 26;
@@ -60,7 +60,7 @@ begin
                 adjacentX := GDConsts.cardinalX[direction] + cellX;
                 adjacentY := GDConsts.cardinalY[direction] + cellY;
                 if (adjacentX >= 0) and (adjacentX <= 49) and (adjacentY >= 0) and (adjacentY <= 24) then
-                  if GDConsts.combatTables.terrain[GDVars.arena^.cells[adjacentY, adjacentX]].code = 22 then
+                  if GDConsts.terrain[GDVars.arena^.cells[adjacentY, adjacentX]].code = 22 then
                     if FxEngine.RollDice(1, 10) <= 9 then
                       GDVars.arena^.cells[adjacentY, adjacentX] := 27;
               end
@@ -84,8 +84,10 @@ var
   function GetWallKind(x, y, kind: ShortInt): Byte;
   begin
     if (x >= 0) and (x <= 15) and (y >= 0) and (y <= 15) then begin
-      if View3D.GetBarrierType(x, y, kind) = 0 then GetWallKind := 1
-      else if View3D.GetWallType(x, y, kind) = 0 then GetWallKind := 0
+      if View3D.GetBarrierType(x, y, kind) = 0 then
+        GetWallKind := 1
+      else if View3D.GetWallType(x, y, kind) = 0 then
+        GetWallKind := 0
       else GetWallKind := 3
     end else if (y = GDVars.mapState.y) and ((kind = C_Dir.EAST) or (kind = C_Dir.WEST)) then
       GetWallKind := 0
@@ -94,8 +96,8 @@ var
 begin
   oppositeDirection := (direction + 4) mod 8;
   firstResult := GetWallKind(x, y, direction);
-  secondResult := GetWallKind(x + GDConsts.combatTables.directionX[direction],
-                              y + GDConsts.combatTables.directionY[direction], oppositeDirection);
+  secondResult := GetWallKind(x + GDConsts.directionX[direction], y + GDConsts.directionY[direction],
+                              oppositeDirection);
   WallBetween := firstResult or secondResult
 end;
 
@@ -275,7 +277,7 @@ var
     CombatSt.PlotCell(6, 1, tile4)
   end;
 begin
-  FillChar(GDVars.arena^.cells, SizeOf(GDVars.arena^.cells), 22);
+  FillChar(GDVars.arena^.cells[0, 0], SizeOf(GDVars.arena^.cells), 22);
   for GDVars.combatOriginY := -2 to 2 do
     for GDVars.combatOriginX := -6 to 6 do begin
       pointX := GDVars.mapState.x + GDVars.combatOriginX;
@@ -371,8 +373,8 @@ begin
     if chance < 0 then chance := 1;
     for x := 0 to 49 do
       for y := 1 to 24 do
-        if GDConsts.combatTables.terrain[GDVars.arena^.cells[y, x]].code = 37 then
-          if GDConsts.combatTables.terrain[GDVars.arena^.cells[y - 1, x]].code = 37 then
+        if GDConsts.terrain[GDVars.arena^.cells[y, x]].code = 37 then
+          if GDConsts.terrain[GDVars.arena^.cells[y - 1, x]].code = 37 then
             if FxEngine.RollDice(1, 100) <= chance then
               if FxEngine.RollDice(1, 100) <= chance then
                 GDVars.arena^.cells[y, x] := FxEngine.RollDice(1, 2) + 41
@@ -417,7 +419,7 @@ begin
   if (CombatSt.CurrentCombatTile and $80) <> 0 then Dec(score, 50);
   for x := 0 to 49 do
     for y := 0 to 24 do
-      if GDConsts.combatTables.terrain[GDVars.arena^.cells[y, x]].code = 37 then
+      if GDConsts.terrain[GDVars.arena^.cells[y, x]].code = 37 then
         case score of
           -30..9: ScatterOneCell(x, y, 0, 0, 0, 30, 15);
           10..29: ScatterOneCell(x, y, 0, 1, 5, 20, 10);
@@ -438,7 +440,7 @@ var
   { Unused in this version; see the other implementations of this routine. }
   mapIndex: Word;
 begin
-  FillChar(GDVars.arena^.cells, SizeOf(GDVars.arena^.cells), 69);
+  FillChar(GDVars.arena^.cells[0, 0], SizeOf(GDVars.arena^.cells), 69);
   configX := GDVars.zone0^.wildX;
   configY := GDVars.zone0^.wildY;
   GDVars.activeCombatantIndex := 15;
@@ -536,8 +538,7 @@ begin
     GDVars.arenaLoc[entityIndex].x := gridX + offsetA * 6 + offsetB * 5 + 22;
     GDVars.arenaLoc[entityIndex].y := gridY + offsetB * 5 + 10;
     CbtMap.ProbeDirection(GDVars.creatures[entityIndex], C_Dir.CENTER, probeA, probeB, probeC, probeD);
-    if (probeA = 0) and (probeB > 0) and
-        (GDConsts.combatTables.terrain[probeB].cost < C_Terr.TERRAIN_IMPASSABLE) then begin
+    if (probeA = 0) and (probeB > 0) and (GDConsts.terrain[probeB].cost < C_Terr.TERRAIN_IMPASSABLE) then begin
       TryPlaceAt := True;
       GDVars.combatOccupancy[GDVars.combatPlane, layer, gridY, gridX] := 0
     end else
@@ -590,8 +591,8 @@ begin
                div 2;
     case phase of
       1: begin
-          stepX := GDConsts.combatTables.directionX[GDConsts.halfDirections[(direction + 2) mod 4]];
-          stepY := GDConsts.combatTables.directionY[GDConsts.halfDirections[(direction + 2) mod 4]];
+          stepX := GDConsts.directionX[GDConsts.halfDirections[(direction + 2) mod 4]];
+          stepY := GDConsts.directionY[GDConsts.halfDirections[(direction + 2) mod 4]];
           candidateX := GDConsts.approachOffsetX[Ord(layer > 0), direction] + stepX * distance;
           candidateY := GDConsts.approachOffsetY[Ord(layer > 0), direction] + stepY * distance;
           finalX := candidateX;
@@ -601,16 +602,16 @@ begin
           attempt := 1
         end;
       2: begin
-          stepX := GDConsts.combatTables.directionX[GDConsts.halfDirections[(direction + 1) mod 4]];
-          stepY := GDConsts.combatTables.directionY[GDConsts.halfDirections[(direction + 1) mod 4]];
+          stepX := GDConsts.directionX[GDConsts.halfDirections[(direction + 1) mod 4]];
+          stepY := GDConsts.directionY[GDConsts.halfDirections[(direction + 1) mod 4]];
           finalX := candidateX + stepX * radius;
           finalY := candidateY + stepY * radius;
           phase := 3;
           Inc(attempt)
         end;
       3: begin
-          stepX := GDConsts.combatTables.directionX[GDConsts.halfDirections[(direction + 3) mod 4]];
-          stepY := GDConsts.combatTables.directionY[GDConsts.halfDirections[(direction + 3) mod 4]];
+          stepX := GDConsts.directionX[GDConsts.halfDirections[(direction + 3) mod 4]];
+          stepY := GDConsts.directionY[GDConsts.halfDirections[(direction + 3) mod 4]];
           finalX := candidateX + stepX * radius;
           finalY := candidateY + stepY * radius;
           phase := 2;
@@ -655,8 +656,8 @@ begin
         probeDirection := GDConsts.placementDirections[GDVars.combatHalfDirections[GDVars.combatPlane], layer];
         if (GDVars.interfaceState = C_Ifc.OVERLAND) or
             (CombatSt.WallBetween(anchorX, anchorY, probeDirection) <> 1) then begin
-          initialX := GDVars.combatXByPlane[GDVars.combatPlane] + GDConsts.combatTables.directionX[probeDirection];
-          initialY := GDVars.combatYByPlane[GDVars.combatPlane] + GDConsts.combatTables.directionY[probeDirection];
+          initialX := GDVars.combatXByPlane[GDVars.combatPlane] + GDConsts.directionX[probeDirection];
+          initialY := GDVars.combatYByPlane[GDVars.combatPlane] + GDConsts.directionY[probeDirection];
           distance := 0;
           phase := 1
         end
@@ -707,10 +708,8 @@ var
     if GDVars.mapState.facing <> lastDirection then begin
       lastDirection := GDVars.mapState.facing;
       GDVars.combatHalfDirections[0] := GDVars.mapState.facing div 2;
-      GDVars.combatXByPlane[1] := GDConsts.combatTables.directionX[GDVars.mapState.facing] * mode +
-        GDVars.combatXByPlane[0];
-      GDVars.combatYByPlane[1] := GDConsts.combatTables.directionY[GDVars.mapState.facing] * mode +
-        GDVars.combatYByPlane[0];
+      GDVars.combatXByPlane[1] := GDConsts.directionX[GDVars.mapState.facing] * mode + GDVars.combatXByPlane[0];
+      GDVars.combatYByPlane[1] := GDConsts.directionY[GDVars.mapState.facing] * mode + GDVars.combatYByPlane[0];
       GDVars.combatHalfDirections[1] := ((GDVars.mapState.facing + 4) mod 8) div 2;
       for GDVars.combatPlane := 0 to 1 do
         for group := 0 to 3 do begin
@@ -831,7 +830,7 @@ begin
   GDVars.bigId := 255;
   MenuCore.ClearBottomLine;
   TextRend.PauseOnly;
-  TextRend.DisplayString(0, 24, LightGreen, Black, 'A battle begins...');
+  TextRend.DisplayString(0, 24, LightGreen, Black, GDConsts.battleBegins);
   GDVars.roundNumber := 0;
   GDVars.roundLimit := 15;
   GDVars.currentAttackRoll := 0;

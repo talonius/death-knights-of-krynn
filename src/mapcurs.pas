@@ -1,16 +1,10 @@
 { MapCurs -- the party marker on the overland map. DrawCursor grabs the map cell under the party (zone0's wildX/wildY)
-  into viewCapture, composes cursorImage over a copy of it in the composite, shows that, and clears the span list;
-  RestoreCursorBackground shows the captured cell again to erase the marker. EclVm draws the marker; Explore erases it
-  and draws it again around a wilderness step. }
+  into viewCapture, composes GDVars.cursorImage over a copy of it in the composite, shows that, and clears the span
+  list; RestoreCursorBackground shows the captured cell again to erase the marker. EclVm draws the marker; Explore
+  erases it and draws it again around a wilderness step. }
 {$O+,F+}
 unit MapCurs;
 interface
-
-{ Empty routine with no callers. }
-procedure NoopMapCursA;
-
-{ Empty routine with no callers. }
-procedure NoopMapCursB;
 
 { Draws the party cursor on the overland map: saves the map cell under the party (one cell in from the map's corner)
   into a buffer, lays the cursor image over a copy of it through its mask, shows the result and clears the dirty spans
@@ -19,9 +13,6 @@ procedure DrawCursor;
 
 { Erases the party cursor by putting back the map cell DrawCursor saved. }
 procedure RestoreCursorBackground;
-
-{ Empty routine with no callers. }
-procedure NoopMapCursC;
 implementation
 uses Blit, GDConsts, GDVars;
 
@@ -41,11 +32,5 @@ procedure RestoreCursorBackground;
 begin
   Blit.ShowPic(GDVars.zone0^.wildX + 1, GDVars.zone0^.wildY + 1, GDVars.viewCapture);
 end;
-
-procedure NoopMapCursA; begin end;
-
-procedure NoopMapCursB; begin end;
-
-procedure NoopMapCursC; begin end;
 begin
 end.

@@ -5,10 +5,7 @@
 {$O+,F+}
 unit GameTime;
 interface
-uses C_Ifc, Crt, C_Keys, GDConsts, GDVars, Types, Sym8x8, FxEngine, CharHlp, TextRend, MenuCore, Magic, GameIo;
-
-{ Empty routine with no callers. }
-procedure NoopGameTime;
+uses C_Ifc, Crt, C_Keys, GDConsts, GDVars, Sym8x8, FxEngine, CharHlp, TextRend, MenuCore, Magic, GameIo, Types;
 
 { Advances the game clock one unit at a time, carrying each component into the next, then ages the party's timed effects
   by the same span.
@@ -38,20 +35,20 @@ var
   { Steps one moon's day count and, at its limit, its phase and border symbol. }
   procedure AdvanceTopJunction(n: Word; limit: Byte);
   begin
-    if GDVars.zone0^.moonTimer[n + $4B00] >= limit then begin
-      if GDVars.zone0^.moonPhase[n + $4B00 - 3] >= 3 then
-        GDVars.zone0^.moonPhase[n + $4B00 - 3] := 0
+    if GDVars.zone0^.ecl[n + $4B00] >= limit then begin
+      if GDVars.zone0^.ecl[n + $4B00 - 3] >= 3 then
+        GDVars.zone0^.ecl[n + $4B00 - 3] := 0
       else
-        Inc(GDVars.zone0^.moonPhase[n + $4B00 - 3]);
+        Inc(GDVars.zone0^.ecl[n + $4B00 - 3]);
       case n of
         $1FC: begin symByte := GDVars.zone0^.moonPhase[$4CF9] + 21; symCol := 8; end;
         $1FD: begin symByte := GDVars.zone0^.moonPhase[$4CFA] + 13; symCol := 19; end;
         $1FE: begin symByte := GDVars.zone0^.moonPhase[$4CFB] + 17; symCol := 30; end;
       end;
       Sym8x8.Put8x8Sym(symCol, 0, symByte + 256, False, False);
-      GDVars.zone0^.moonTimer[n + $4B00] := 0;
+      GDVars.zone0^.ecl[n + $4B00] := 0;
     end else
-      Inc(GDVars.zone0^.moonTimer[n + $4B00]);
+      Inc(GDVars.zone0^.ecl[n + $4B00]);
   end;
 begin
   AdvanceTopJunction($1FC, 8);
@@ -59,13 +56,11 @@ begin
   AdvanceTopJunction($1FE, 6);
 end;
 
-{ Ages the timed effects of the party by a span of time, in steps of at most ten minutes; an effect whose time runs out
-  is removed, and one with no duration never runs out. A flag per member marks the members that still have timed
-  effects. Outside camp every member is aged; in camp only flagged members are, and nothing happens when none is
-  flagged. Note: when the effect that runs out is second in a list, aging resumes at the first effect, which is aged
-  again.
-  @param(count Number of units.)
-  @param(tUnit Clock component counted.) }
+{ Takes count of unit tUnit, in rounds, off every running effect, at most 10 rounds at a time; an effect whose time runs
+  out is removed, and a duration of 0 never runs out. After a removal the walk resumes from the first effect, or from
+  the one that followed the removed effect.
+  @param(count How many units have passed.)
+  @param(tUnit Clock unit of count.) }
 procedure TimeOutEffects(count: Byte; tUnit: ShortInt);
 var
   u: ShortInt;
@@ -77,6 +72,7 @@ var
   found: Boolean;
   tail: Types.PEffect;
   prev: Types.PEffect;
+  nxt: Types.PEffect;
   e: Types.PEffect;
 begin
   if GDVars.interfaceState <> C_Ifc.CAMPING then
@@ -106,6 +102,7 @@ begin
         e := cur^.effects;
         tail := cur^.effects;
         prev := cur^.effects;
+        nxt := prev^.next;
         if cur^.effects <> nil then
           while tail^.next <> nil do tail := tail^.next;
         done := False;
@@ -118,11 +115,12 @@ begin
             GDVars.effectsRunning[i] := 1;
             e := e^.next;
           end else begin
+            nxt := e^.next;
             FxEngine.RemoveEffect(cur, e^.effectId, e);
             if prev = cur^.effects then
               e := cur^.effects
             else
-              e := prev^.next;
+              e := nxt;
           end;
           prev := cur^.effects;
           while (prev <> nil) and (prev <> e) and (prev^.next <> e) do
@@ -244,7 +242,7 @@ begin
   for i := 0 to 6 do
     colors[i] := LightGreen;
   colors[hl] := White;
-  TextRend.DisplayString(1, 17, LightGreen, Black, 'Rest Time:');
+  TextRend.DisplayString(1, 17, LightGreen, Black, GDConsts.restLabel);
   x := 11;
   for i := 4 downto 3 do begin
     TextRend.DisplayString(x + 1, 17, colors[i], Black, GameTime.TwoDigitStr(GDVars.restTime[i]));
@@ -270,7 +268,7 @@ begin
     GameTime.DisplayRestTime(sel);
     MenuCore.EnableChoices(6);
     choice := MenuCore.MenuHorizontal(GDConsts.emptyQuery, GDConsts.restMenu, Ord(True), Ord(False));
-    if (GDVars.menuExtendedKey <> 0) then begin
+    if GDVars.menuExtendedKey <> 0 then begin
       key := Char(choice);
       case key of
         C_Keys.UP: choice := 4;
@@ -320,7 +318,7 @@ begin
       cur := cur^.next;
     end;
     if interactive then GameTime.DisplayRestTime(0);
-    TextRend.DisplayString(1, 19, LightGreen, Black, 'The Whole Party Is Healed');
+    TextRend.DisplayString(1, 19, LightGreen, Black, GDConsts.partyHealedText);
     if healed then CharHlp.DisplayParty(GDVars.currentCharacter);
     TextRend.PauseOnly;
     CharHlp.ClearMessageWindow;
@@ -351,7 +349,7 @@ begin
           else begin
             Dec(cr^.spells^.memorized[i], $80);
             GameTime.DisplayRestTime(0);
-            Magic.PrintCastSpellMsg(cr, 'has memorized', cr^.spells^.memorized[i]);
+            Magic.PrintCastSpellMsg(cr, GDConsts.memorizedText, cr^.spells^.memorized[i]);
             done := True;
           end;
         Inc(i);
@@ -392,7 +390,7 @@ begin
             cr^.spells^.known[sp] := 1;
             Magic.RemoveSpellFromScroll(cr, it, sp);
             GameTime.DisplayRestTime(0);
-            Magic.PrintCastSpellMsg(cr, 'has scribed', sp);
+            Magic.PrintCastSpellMsg(cr, GDConsts.scribedText, sp);
             done := True;
           end;
         end;
@@ -494,8 +492,9 @@ begin
     stop := not GameTime.CampRestMenu
   else
     stop := False;
-  while (not stop) and ((GDVars.restTime[4] > 0) or (GDVars.restTime[3] > 0) or (GDVars.restTime[2] > 0) or
-                        (GDVars.restTime[1] > 0)) do begin
+  while (not stop) and
+      ((GDVars.restTime[4] > 0) or (GDVars.restTime[3] > 0) or (GDVars.restTime[2] > 0) or
+       (GDVars.restTime[1] > 0)) do begin
     if interactive and GameIo.InputPending then begin
       GameTime.DisplayRestTime(0);
       if Char(MenuCore.YesNoMenu(GDConsts.stopRestPrompt, GDConsts.yesKey)) = Chr(GDConsts.yesKey) then
@@ -518,11 +517,10 @@ begin
         Inc(GDVars.restTicks);
         if GDVars.restTicks >= GDVars.zone1^.restPeriod[GDConsts.restPeriodIndex + $7C00] then begin
           GDVars.restTicks := 0;
-          if FxEngine.RollDice(1, 100) <=
-              GDVars.zone1^.interruptPct[GDConsts.interruptPctIndex + $7C00] then begin
+          if FxEngine.RollDice(1, 100) <= GDVars.zone1^.interruptPct[GDConsts.interruptPctIndex + $7C00] then begin
             CharHlp.ClearMessageWindow;
             GameTime.DisplayRestTime(0);
-            TextRend.DisplayString(1, 19, White, Black, 'Your repose is suddenly interrupted!');
+            TextRend.DisplayString(1, 19, White, Black, GDConsts.interruptedText);
             stop := True;
             CampRest := True;
             TextRend.PauseOnly;
@@ -533,10 +531,6 @@ begin
   end;
   TextRend.ClearRect(1, 17, 38, 22);
   GDVars.noBorder := 0;
-end;
-
-procedure NoopGameTime;
-begin
 end;
 begin
 end.

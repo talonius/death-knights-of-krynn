@@ -4,8 +4,8 @@
 {$F+,O+,S-,R-,V-,B-,I-}
 unit CharHlp;
 interface
-uses C_Class, C_Dir, C_Effect, C_Ifc, C_Keys, C_Race, C_Side, C_Spell, C_Stat, C_Status, GDConsts, GDVars, Types,
-  TextRend, CbtMap, Border, Blit, Pathing, Music, MapView, GameIo, MenuCore, Crt, Portrait;
+uses C_Class, C_Dir, C_Effect, C_Ifc, C_Keys, C_Race, C_Side, C_Spell, C_Stat, C_Status, GDConsts, GDVars, TextRend,
+  CbtMap, Border, Blit, Pathing, Crt, Music, MapView, GameIo, MenuCore, Portrait, Types;
 
 { Rolls a percentile chance.
   @param(percent The chance in 100.)
@@ -21,7 +21,7 @@ function PercentileRoll(percent: Byte): Boolean;
   @param(row Screen row for the printed name.)
   @param(inventory Adds the readied column.)
   @param(draw Also prints the name at (column, row).) }
-procedure PrintItemString(character: Types.PCharacter; item: Types.PItem; column, row: Byte; inventory, draw: Boolean);
+procedure PrintItemString(character, item: Pointer; column, row: Byte; inventory, draw: Boolean);
 
 { Redraws the party list (name, AC, HP) with highlight drawn bright and records its box for mouse clicks; nothing on the
   overland map or over a big picture.
@@ -86,12 +86,6 @@ function ByteToString(value: Byte): String;
   @param(character The creature.)
   @returns(The adjustment.) }
 function DexMissileAdjust(character: Types.PCharacter): ShortInt;
-
-{ Computes the Dexterity defensive adjustment from the current Dexterity: -4 at 1..3, -3..-1 at 4..6, +1..+4 at 15..18,
-  4 at 19..20, 5 at 21..23, 6 at 24..25, else 0.
-  @param(character The creature.)
-  @returns(The adjustment.) }
-function DexterityArmorAdjustment(character: Types.PCharacter): ShortInt;
 
 { Computes the Strength to-hit bonus on TranslatedStrength's scale (-3 at 1..3 up to +7 at 30), or 0 unless the
   creature's Strength bonus applies.
@@ -182,7 +176,7 @@ procedure PrintNameStringAnim(character: Types.PCharacter; effect: Boolean; mess
   @param(effectId The effect to look for.)
   @param(effect Receives that effect, or nil.)
   @returns(True when the creature has the effect.) }
-function HasEffect(character: Types.PCharacter; effectId: Byte; var effect: Types.PEffect): Boolean;
+function HasEffect(character: Pointer; effectId: Byte; var effect: Pointer): Boolean;
 
 { Subtracts damage from a creature's hit points. Falling more than 9 below 0, or an animated creature reaching 0, kills
   it; 1..9 below makes it dying (in combat the deficit is kept as overkill); landing on 0 makes it unconscious. A
@@ -285,9 +279,6 @@ function HasReadiedHoopak(character: Types.PCharacter): Boolean;
   @returns(The movement in half-steps.) }
 function RecalcMovement(character: Types.PCharacter): Byte;
 
-{ Empty routine with no callers. }
-procedure NoopCharHlp;
-
 { Tells whether any party member (a player or non-player character on the player side) is dying. With `apply` set, the
   first dying member found is bandaged: it becomes unconscious, its overkill is cleared and the bandaging is announced.
   @param(apply Set to bandage the first dying member.)
@@ -328,8 +319,9 @@ procedure ScatterCombatIcon(radius, cell, soundCue: Byte);
 function ClassConAdj(character: Types.PCharacter; classId: Byte): ShortInt;
 implementation
 type
-  { dexterity, shield, protection items, the best ring, body armor }
   TArmorAdjustments = array[0..4] of ShortInt;
+
+function DexterityArmorAdjustment(character: Types.PCharacter): ShortInt; forward;
 
 function PercentileRoll(percent: Byte): Boolean;
 begin
@@ -348,54 +340,57 @@ var weapon: Types.PItem;
     weaponType: Byte;
     plus: ShortInt;
 begin
-  weapon := character^.equipped[0];
+  weapon := Types.PCharacter(character)^.equipped[0];
   if weapon = nil then Exit;
   weaponType := weapon^.itemType;
-  character^.thac0Adjusted := character^.thac0Base;
+  Types.PCharacter(character)^.thac0Adjusted := Types.PCharacter(character)^.thac0Base;
   if (GDVars.baseItems[weaponType].flags and $02) <> 0 then
-    character^.thac0Adjusted := CharHlp.DexMissileAdjust(character) + character^.thac0Adjusted;
-  character^.currentModifiers[1] := GDVars.baseItems[weaponType].damageModifier;
+    Types.PCharacter(character)^.thac0Adjusted := CharHlp.DexMissileAdjust(character) +
+        Types.PCharacter(character)^.thac0Adjusted;
+  Types.PCharacter(character)^.currentModifiers[1] := GDVars.baseItems[weaponType].damageModifier;
   if (GDVars.baseItems[weaponType].flags and $04) <> 0 then begin
-    character^.thac0Adjusted := CharHlp.StrToHitAdjust(character) + character^.thac0Adjusted;
-    character^.currentModifiers[1] := CharHlp.StrDamageAdjust(character) + character^.currentModifiers[1]
+    Types.PCharacter(character)^.thac0Adjusted := CharHlp.StrToHitAdjust(character) +
+        Types.PCharacter(character)^.thac0Adjusted;
+    Types.PCharacter(character)^.currentModifiers[1] :=
+      CharHlp.StrDamageAdjust(character) + Types.PCharacter(character)^.currentModifiers[1]
   end;
   plus := weapon^.plus;
   if GDVars.baseItems[weaponType].flags > $7F then
-    if character^.equipped[12] <> nil then
-      plus := plus + character^.equipped[12]^.plus;
+    if Types.PCharacter(character)^.equipped[12] <> nil then
+      plus := plus + Types.PCharacter(character)^.equipped[12]^.plus;
   if (GDVars.baseItems[weaponType].flags and $01) > 0 then
-    if character^.equipped[11] <> nil then
-      plus := plus + character^.equipped[11]^.plus;
-  character^.currentModifiers[1] := character^.currentModifiers[1] + plus;
-  if ((character^.race = C_Race.SILVANESTI_ELF) or (character^.race = C_Race.QUALINESTI_ELF)) and
-      (((weapon^.itemType > 21) and (weapon^.itemType < 27)) or (weapon^.itemType = 19) or
-       (weapon^.itemType = 18)) then
+    if Types.PCharacter(character)^.equipped[11] <> nil then
+      plus := plus + Types.PCharacter(character)^.equipped[11]^.plus;
+  Types.PCharacter(character)^.currentModifiers[1] := Types.PCharacter(character)^.currentModifiers[1] + plus;
+  if ((Types.PCharacter(character)^.race = C_Race.SILVANESTI_ELF) or
+      (Types.PCharacter(character)^.race = C_Race.QUALINESTI_ELF)) and
+      (((weapon^.itemType > 21) and (weapon^.itemType < 27)) or (weapon^.itemType = 19) or (weapon^.itemType = 18)) then
     Inc(plus);
-  if (character^.race = C_Race.KENDER) and (weapon^.itemType = 67) then
+  if (Types.PCharacter(character)^.race = C_Race.KENDER) and (weapon^.itemType = 67) then
     Inc(plus, 2);
-  character^.thac0Adjusted := character^.thac0Adjusted + plus;
-  character^.currentRolls[1] := GDVars.baseItems[weaponType].damageRolls;
-  character^.currentDice[1] := GDVars.baseItems[weaponType].damageDice
+  Types.PCharacter(character)^.thac0Adjusted := Types.PCharacter(character)^.thac0Adjusted + plus;
+  Types.PCharacter(character)^.currentRolls[1] := GDVars.baseItems[weaponType].damageRolls;
+  Types.PCharacter(character)^.currentDice[1] := GDVars.baseItems[weaponType].damageDice
 end;
 
 { Sets movement from readied body armor's weight: the base movement up to 150, 9 up to 399, else 6; magic armor adds 3
   when that leaves 9 or less.
   @param(character The character.)
   @param(item A readied item; anything but body armor is ignored.) }
-procedure ArmorMoveAdjust(character: Types.PCharacter; item: Types.PItem);
+procedure ArmorMoveAdjust(character, item: Pointer);
 begin
-  if GDVars.baseItems[item^.itemType].slot = 2 then begin
-    case item^.weight of
+  if GDVars.baseItems[Types.PItem(item)^.itemType].slot = 2 then begin
+    case Types.PItem(item)^.weight of
       0..150:
-        character^.currentMovement := character^.baseMovement;
+        Types.PCharacter(character)^.currentMovement := Types.PCharacter(character)^.baseMovement;
       151..399:
-        character^.currentMovement := 9
+        Types.PCharacter(character)^.currentMovement := 9
     else
-      character^.currentMovement := 6
+      Types.PCharacter(character)^.currentMovement := 6
     end;
-    if item^.plus <> 0 then
-      if character^.currentMovement <= 9 then
-        character^.currentMovement := character^.currentMovement + 3
+    if Types.PItem(item)^.plus <> 0 then
+      if Types.PCharacter(character)^.currentMovement <= 9 then
+        Types.PCharacter(character)^.currentMovement := Types.PCharacter(character)^.currentMovement + 3
   end
 end;
 
@@ -409,28 +404,29 @@ end;
   @param(adjustments The adjustments: 0 Dexterity, 1 shield, 2 pluses of armor-class-0 items, 3 best ring, 4 best
     armor.)
   @param(magicBody Set when the best armor becomes magical body armor.) }
-procedure AddItemArmorAdjust(character: Types.PCharacter; item: Types.PItem; var adjustments; var magicBody: Byte);
+procedure AddItemArmorAdjust(character, item: Pointer; var adjustments; var magicBody: Byte);
 var
   points: Byte;
   slot: Byte;
 begin
-  points := GDVars.baseItems[item^.itemType].armorBonus;
+  points := GDVars.baseItems[Types.PItem(item)^.itemType].armorBonus;
   if points > $7F then begin
     points := points and $7F;
-    slot := GDVars.baseItems[item^.itemType].slot;
+    slot := GDVars.baseItems[Types.PItem(item)^.itemType].slot;
     if slot = 1 then
-      TArmorAdjustments(adjustments)[1] := points + item^.plus
+      TArmorAdjustments(adjustments)[1] := points + Types.PItem(item)^.plus
     else if points = 0 then begin
       if slot = 9 then begin
-        if item^.plus > TArmorAdjustments(adjustments)[3] then
-          TArmorAdjustments(adjustments)[3] := item^.plus
+        if Types.PItem(item)^.plus > TArmorAdjustments(adjustments)[3] then
+          TArmorAdjustments(adjustments)[3] := Types.PItem(item)^.plus
       end else
-        TArmorAdjustments(adjustments)[2] := TArmorAdjustments(adjustments)[2] + item^.plus;
-      character^.saveBonus := character^.saveBonus + item^.saveBonus
+        TArmorAdjustments(adjustments)[2] := TArmorAdjustments(adjustments)[2] + Types.PItem(item)^.plus;
+      Types.PCharacter(character)^.saveBonus := Types.PCharacter(character)^.saveBonus +
+          Types.PItem(item)^.saveBonus
     end else begin
-      if points + item^.plus > TArmorAdjustments(adjustments)[4] then begin
-        TArmorAdjustments(adjustments)[4] := points + item^.plus;
-        if item^.plus > 0 then
+      if points + Types.PItem(item)^.plus > TArmorAdjustments(adjustments)[4] then begin
+        TArmorAdjustments(adjustments)[4] := points + Types.PItem(item)^.plus;
+        if Types.PItem(item)^.plus > 0 then
           if slot = 2 then
             magicBody := 1
       end
@@ -445,12 +441,12 @@ procedure EncumbranceAdjust(character: Types.PCharacter);
 var excess: Integer;
     movement: Byte;
 begin
-  excess := character^.encumbrance - CharHlp.WeightAllowance(character);
+  excess := Types.PCharacter(character)^.encumbrance - CharHlp.WeightAllowance(character);
   if excess < 0 then
     excess := 0;
   case excess of
     0..512:
-      movement := character^.currentMovement;
+      movement := Types.PCharacter(character)^.currentMovement;
     513..768:
       movement := 9;
     769..1024:
@@ -458,25 +454,25 @@ begin
   else
     movement := 3
   end;
-  if movement < character^.currentMovement then
-    character^.currentMovement := movement
+  if movement < Types.PCharacter(character)^.currentMovement then
+    Types.PCharacter(character)^.currentMovement := movement
 end;
 
-procedure PrintItemString(character: Types.PCharacter; item: Types.PItem; column, row: Byte; inventory, draw: Boolean);
+procedure PrintItemString(character, item: Pointer; column, row: Byte; inventory, draw: Boolean);
 var
   part: Byte;
   mask: Byte;
-  effect: Types.PEffect;
+  effect: Pointer;
   found: Boolean;
   pluralAdded: Boolean;
   candidate: Types.PCharacter;
 begin
-  item^.name := '';
+  Types.PItem(item)^.name := '';
   if inventory then begin
-    if item^.equipped <> 0 then
-      item^.name := ' Yes  '
+    if Types.PItem(item)^.equipped <> 0 then
+      Types.PItem(item)^.name := GDConsts.equippedText
     else
-      item^.name := ' No   '
+      Types.PItem(item)^.name := GDConsts.unequippedText
   end;
   found := False;
   candidate := GDVars.partyHead;
@@ -486,32 +482,36 @@ begin
     candidate := candidate^.next
   end;
   if found then
-    if (item^.plus > 0) or (item^.saveBonus > 0) or (item^.cursed <> 0) then
-      item^.name := item^.name + '*' + ' ';
-  if item^.quantity > 0 then
-    item^.name := item^.name + CharHlp.ByteToString(item^.quantity) + ' ';
+    if (Types.PItem(item)^.plus > 0) or (Types.PItem(item)^.saveBonus > 0) or
+        (Types.PItem(item)^.cursed <> 0) then
+      Types.PItem(item)^.name := Types.PItem(item)^.name + '*' + ' ';
+  if Types.PItem(item)^.quantity > 0 then
+    Types.PItem(item)^.name := Types.PItem(item)^.name +
+        CharHlp.ByteToString(Types.PItem(item)^.quantity) + ' ';
   mask := 0;
   for part := 1 to 3 do
-    if item^.nameIds[part] <> 0 then
-      if (item^.unidentifiedMask shr (3 - part)) and $01 = 0 then
+    if Types.PItem(item)^.nameIds[part] <> 0 then
+      if (Types.PItem(item)^.unidentifiedMask shr (3 - part)) and $01 = 0 then
         Inc(mask, 1 shl (part - 1));
   pluralAdded := False;
   for part := 3 downto 1 do
     if (mask shr (part - 1)) and $01 > 0 then begin
-      item^.name := item^.name + GDConsts.itemNameParts[item^.nameIds[part]];
-      if (item^.quantity < 2) or pluralAdded then
-        item^.name := item^.name + ' '
-      else if ((1 shl (part - 1)) = mask) or ((part = 1) and (mask > 4) and (item^.itemType <> 55)) or
-        ((part = 2) and not Odd(mask)) or ((part = 3) and (item^.itemType = 55)) or
-        (((item^.itemType = 30) or (item^.itemType = 5) or (item^.itemType = 12)) and (item^.nameIds[3] <> 93))
-        then begin
-        item^.name := item^.name + 's ';
+      Types.PItem(item)^.name := Types.PItem(item)^.name +
+          GDConsts.itemNameParts[Types.PItem(item)^.nameIds[part]];
+      if (Types.PItem(item)^.quantity < 2) or pluralAdded then
+        Types.PItem(item)^.name := Types.PItem(item)^.name + ' '
+      else if ((1 shl (part - 1)) = mask) or
+        ((part = 1) and (mask > 4) and (Types.PItem(item)^.itemType <> 55)) or
+        ((part = 2) and not Odd(mask)) or ((part = 3) and (Types.PItem(item)^.itemType = 55)) or
+        (((Types.PItem(item)^.itemType = 30) or (Types.PItem(item)^.itemType = 5) or
+          (Types.PItem(item)^.itemType = 12)) and (Types.PItem(item)^.nameIds[3] <> 93)) then begin
+        Types.PItem(item)^.name := Types.PItem(item)^.name + 's ';
         pluralAdded := True
       end else
-        item^.name := item^.name + ' '
+        Types.PItem(item)^.name := Types.PItem(item)^.name + ' '
     end;
   if draw then
-    TextRend.DisplayString(column, row, LightGreen, Black, item^.name)
+    TextRend.DisplayString(column, row, LightGreen, Black, Types.PItem(item)^.name)
 end;
 
 procedure DisplayParty(highlight: Types.PCharacter);
@@ -532,8 +532,8 @@ begin
   GDVars.partyPanelRight := 38;
   GDVars.partyPanelBottom := 3;
   row := 2;
-  TextRend.DisplayString(column, row, White, Black, 'Name');
-  TextRend.DisplayString(33, row, White, Black, 'AC  HP');
+  TextRend.DisplayString(column, row, White, Black, GDConsts.nameHeader);
+  TextRend.DisplayString(33, row, White, Black, GDConsts.statsHeader);
   Inc(row, 2);
   character := GDVars.partyHead;
   while character <> nil do begin
@@ -618,8 +618,8 @@ var value: String;
     { Unused in this version; see the other implementations of this routine. }
     color: Byte;
 begin
-  value := CharHlp.ByteToString(Abs(character^.armorClass - 60));
-  if character^.armorClass > 60 then
+  value := CharHlp.ByteToString(Abs(Types.PCharacter(character)^.armorClass - 60));
+  if Types.PCharacter(character)^.armorClass > 60 then
     value := '-' + value;
   TextRend.DisplayString(column, row, LightGreen, Black, value)
 end;
@@ -629,18 +629,18 @@ var value: String;
     color: Byte;
     textLength: ShortInt;
 begin
-  if character^.hitPoints < character^.maxHitPoints then
+  if Types.PCharacter(character)^.hitPoints < Types.PCharacter(character)^.maxHitPoints then
     color := Yellow
   else
     color := LightGreen;
   if hotPink then
     color := LightMagenta;
-  value := CharHlp.ByteToString(character^.hitPoints);
+  value := CharHlp.ByteToString(Types.PCharacter(character)^.hitPoints);
   TextRend.DisplayString(column, row, color, Black, value);
   if showMax then begin
     textLength := Length(value);
     TextRend.DisplayString(column + textLength, row, LightGreen, Black,
-                           '/' + CharHlp.ByteToString(character^.maxHitPoints))
+                           '/' + CharHlp.ByteToString(Types.PCharacter(character)^.maxHitPoints))
   end
 end;
 
@@ -656,31 +656,33 @@ begin
     row := 1;
     CharHlp.PrintCreatureMessage(character, ' ', row, False);
     Inc(row);
-    TextRend.DisplayString(23, row + 1, LightGreen, Black, 'Hitpoints');
+    TextRend.DisplayString(23, row + 1, LightGreen, Black, GDConsts.hitPointsHeader);
     CharHlp.PrintHitPoints(character, 33, row + 1, False, False);
     Inc(row, 2);
-    TextRend.DisplayString(23, row + 1, LightGreen, Black, 'AC');
+    TextRend.DisplayString(23, row + 1, LightGreen, Black, GDConsts.armorClassHeader);
     CharHlp.PrintArmorClass(character, 26, row + 1);
     GDVars.currentRow := row + 1;
-    if character^.equipped[0] <> nil then begin
+    if Types.PCharacter(character)^.equipped[0] <> nil then begin
       Inc(row, 2);
       column := 23;
-      CharHlp.PrintItemString(character, character^.equipped[0], 0, 0, False, False);
-      TextRend.DisplayMessageWindow(23, row + 1, 38, row + 1 + 2, LightGreen, Black, True, character^.equipped[0]^.name)
+      CharHlp.PrintItemString(character, Types.PCharacter(character)^.equipped[0], 0, 0, False, False);
+      TextRend.DisplayMessageWindow(23, row + 1, 38, row + 1 + 1 + 1, LightGreen, Black, True,
+                                    Types.PCharacter(character)^.equipped[0]^.name)
     end;
     row := GDVars.currentRow + 1;
-    if character^.enabled = 0 then
-      TextRend.DisplayString(23, row + 1, White, Black, GDConsts.statusNames[ShortInt(character^.status)])
+    if Types.PCharacter(character)^.enabled = 0 then
+      TextRend.DisplayString(23, row + 1, White, Black,
+                             GDConsts.statusNames[ShortInt(Types.PCharacter(character)^.status)])
     else if CharHlp.IsHelpless(character) then
-      TextRend.DisplayString(23, row + 1, White, Black, '(Helpless)')
-    else if character^.combat^.spellCast > 0 then
-      TextRend.DisplayString(23, row + 1, White, Black, '(Casting)')
+      TextRend.DisplayString(23, row + 1, White, Black, GDConsts.helplessText)
+    else if Types.PCharacter(character)^.combat^.spellCast > 0 then
+      TextRend.DisplayString(23, row + 1, White, Black, GDConsts.castingText)
   end
 end;
 
 function IsHelpless(character: Types.PCharacter): Boolean;
 var index: Byte;
-    effect: Types.PEffect;
+    effect: Pointer;
 begin
   IsHelpless := False;
   for index := 1 to 3 do
@@ -706,58 +708,63 @@ var copyIndex: Byte;
     weight: array[1..3] of Byte;
 begin
   for equippedIndex := 0 to 12 do
-    character^.equipped[equippedIndex] := nil;
+    Types.PCharacter(character)^.equipped[equippedIndex] := nil;
   bag := False;
-  character^.numberOfItems := 0;
-  item := character^.items;
-  character^.handsEquipped := 0;
-  character^.encumbrance := 0;
+  Types.PCharacter(character)^.numberOfItems := 0;
+  item := Types.PCharacter(character)^.items;
+  Types.PCharacter(character)^.handsEquipped := 0;
+  Types.PCharacter(character)^.encumbrance := 0;
   GDVars.equippedWeight := 0;
   while item <> nil do begin
-    Inc(character^.numberOfItems);
+    Inc(Types.PCharacter(character)^.numberOfItems);
     itemWeight := item^.weight;
     if item^.quantity > 0 then
       itemWeight := item^.quantity * itemWeight;
-    Inc(character^.encumbrance, itemWeight);
+    Inc(Types.PCharacter(character)^.encumbrance, itemWeight);
     if item^.equipped <> 0 then begin
       Inc(GDVars.equippedWeight, itemWeight);
       slot := GDVars.baseItems[item^.itemType].slot;
       case slot of
-        0..8: character^.equipped[ShortInt(slot)] := item;
-        9: if character^.equipped[9] <> nil then begin
-            if character^.equipped[10] = nil then
-              character^.equipped[10] := item
+        0..8: Types.PCharacter(character)^.equipped[ShortInt(slot)] := item;
+        9: if Types.PCharacter(character)^.equipped[9] <> nil then begin
+            if Types.PCharacter(character)^.equipped[10] = nil then
+              Types.PCharacter(character)^.equipped[10] := item
           end else
-            character^.equipped[9] := item
+            Types.PCharacter(character)^.equipped[9] := item
       end;
       if item^.itemType = 30 then
-        character^.equipped[11] := item;
+        Types.PCharacter(character)^.equipped[11] := item;
       if item^.itemType = 12 then
-        character^.equipped[12] := item;
-      character^.handsEquipped := character^.handsEquipped + GDVars.baseItems[item^.itemType].hands
+        Types.PCharacter(character)^.equipped[12] := item;
+      Types.PCharacter(character)^.handsEquipped := Types.PCharacter(character)^.handsEquipped +
+          GDVars.baseItems[item^.itemType].hands
     end;
     item := item^.next
   end;
   for coinIndex := 4 to 6 do
-    character^.encumbrance := character^.encumbrance + character^.coins[coinIndex];
+    Types.PCharacter(character)^.encumbrance := Types.PCharacter(character)^.encumbrance +
+        Types.PCharacter(character)^.coins[coinIndex];
   for copyIndex := 1 to 2 do begin
-    character^.currentRolls[copyIndex] := character^.unarmedRolls[copyIndex];
-    character^.currentDice[copyIndex] := character^.unarmedDice[copyIndex];
-    character^.currentModifiers[copyIndex] := character^.unarmedModifiers[copyIndex]
+    Types.PCharacter(character)^.currentRolls[copyIndex] := Types.PCharacter(character)^.unarmedRolls[copyIndex];
+    Types.PCharacter(character)^.currentDice[copyIndex] := Types.PCharacter(character)^.unarmedDice[copyIndex];
+    Types.PCharacter(character)^.currentModifiers[copyIndex] :=
+      Types.PCharacter(character)^.unarmedModifiers[copyIndex]
   end;
   FillChar(adjustments, SizeOf(adjustments), 0);
   magicBody := 0;
-  character^.saveBonus := 0;
-  character^.armorClass := character^.baseArmorClass;
-  character^.currentMovement := character^.baseMovement;
-  character^.thac0Adjusted := character^.thac0Base;
+  Types.PCharacter(character)^.saveBonus := 0;
+  Types.PCharacter(character)^.armorClass := Types.PCharacter(character)^.baseArmorClass;
+  Types.PCharacter(character)^.currentMovement := Types.PCharacter(character)^.baseMovement;
+  Types.PCharacter(character)^.thac0Adjusted := Types.PCharacter(character)^.thac0Base;
   adjustments[0] := CharHlp.DexterityArmorAdjustment(character);
-  if character^.equipped[0] = nil then begin
-    character^.thac0Adjusted := CharHlp.StrToHitAdjust(character) + character^.thac0Adjusted;
-    character^.currentModifiers[1] := CharHlp.StrDamageAdjust(character) + character^.currentModifiers[1]
+  if Types.PCharacter(character)^.equipped[0] = nil then begin
+    Types.PCharacter(character)^.thac0Adjusted := CharHlp.StrToHitAdjust(character) +
+        Types.PCharacter(character)^.thac0Adjusted;
+    Types.PCharacter(character)^.currentModifiers[1] :=
+      CharHlp.StrDamageAdjust(character) + Types.PCharacter(character)^.currentModifiers[1]
   end;
   CharHlp.WeaponAdjust(character);
-  item := character^.items;
+  item := Types.PCharacter(character)^.items;
   while item <> nil do begin
     if item^.equipped <> 0 then begin
       CharHlp.ArmorMoveAdjust(character, item);
@@ -767,21 +774,21 @@ begin
   end;
   if magicBody <> 0 then
     adjustments[3] := 0;
-  character^.currentMovement := CharHlp.RecalcMovement(character) div 2;
-  if adjustments[4] < character^.armorClass then
-    adjustments[4] := character^.armorClass;
-  character^.armorClass := 0;
+  Types.PCharacter(character)^.currentMovement := CharHlp.RecalcMovement(character) div 2;
+  if adjustments[4] < Types.PCharacter(character)^.armorClass then
+    adjustments[4] := Types.PCharacter(character)^.armorClass;
+  Types.PCharacter(character)^.armorClass := 0;
   for adjustIndex := 4 downto 0 do
-    character^.armorClass := character^.armorClass + adjustments[adjustIndex];
-  character^.rearArmorClass := adjustments[4] + adjustments[2] + adjustments[3] - 2
+    Types.PCharacter(character)^.armorClass := Types.PCharacter(character)^.armorClass + adjustments[adjustIndex];
+  Types.PCharacter(character)^.rearArmorClass := adjustments[4] + adjustments[2] + adjustments[3] - 1 - 1
 end;
 
 function RecalcMovement(character: Types.PCharacter): Byte;
 var item: Types.PItem;
-    effect: Types.PEffect;
+    effect: Pointer;
 begin
-  character^.currentMovement := character^.baseMovement;
-  item := character^.items;
+  Types.PCharacter(character)^.currentMovement := Types.PCharacter(character)^.baseMovement;
+  item := Types.PCharacter(character)^.items;
   while item <> nil do begin
     if item^.equipped <> 0 then
       CharHlp.ArmorMoveAdjust(character, item);
@@ -789,13 +796,13 @@ begin
   end;
   CharHlp.EncumbranceAdjust(character);
   if CharHlp.HasEffect(character, C_Effect.HASTED, effect) then
-    character^.currentMovement := character^.currentMovement * 2;
+    Types.PCharacter(character)^.currentMovement := Types.PCharacter(character)^.currentMovement * 2;
   if CharHlp.HasEffect(character, C_Effect.SLOWED, effect) then
-    character^.currentMovement := character^.currentMovement div 2;
+    Types.PCharacter(character)^.currentMovement := Types.PCharacter(character)^.currentMovement div 2;
   if CharHlp.HasEffect(character, C_Effect.MAGIC_BOOTS, effect) then
-    character^.currentMovement := character^.currentMovement * 2;
-  GDVars.movementRate := character^.currentMovement;
-  if character^.side = C_Side.PLAYER then
+    Types.PCharacter(character)^.currentMovement := Types.PCharacter(character)^.currentMovement * 2;
+  GDVars.movementRate := Types.PCharacter(character)^.currentMovement;
+  if Types.PCharacter(character)^.side = C_Side.PLAYER then
     GDVars.movementRate := GDVars.movementRate + GDVars.zone1^.modPartyMove[GDConsts.modPartyMoveIndex + $7C00];
   GDVars.movementRate := GDVars.movementRate * 2;
   RecalcMovement := GDVars.movementRate
@@ -822,10 +829,14 @@ begin
   LongIntToString := resultText
 end;
 
+{ Computes the Dexterity defensive adjustment from the current Dexterity: -4 at 1..3, -3..-1 at 4..6, +1..+4 at 15..18,
+  4 at 19..20, 5 at 21..23, 6 at 24..25, else 0.
+  @param(character The creature.)
+  @returns(The adjustment.) }
 function DexterityArmorAdjustment(character: Types.PCharacter): ShortInt;
 var dexterity: Byte;
 begin
-  dexterity := character^.stats[C_Stat.DEXTERITY].current;
+  dexterity := Types.PCharacter(character)^.stats[C_Stat.DEXTERITY].current;
   case dexterity of
     1..3: DexterityArmorAdjustment := -4;
     4..6: DexterityArmorAdjustment := dexterity - 7;
@@ -841,7 +852,7 @@ end;
 function DexMissileAdjust(character: Types.PCharacter): ShortInt;
 var dexterity: Byte;
 begin
-  dexterity := character^.stats[C_Stat.DEXTERITY].current;
+  dexterity := Types.PCharacter(character)^.stats[C_Stat.DEXTERITY].current;
   case dexterity of
     0..2: DexMissileAdjust := -4;
     3..5: DexMissileAdjust := dexterity - 6;
@@ -860,9 +871,9 @@ end;
   @returns(Strength on that scale.) }
 function TranslatedStrength(character: Types.PCharacter): Byte;
 begin
-  case character^.stats[C_Stat.STRENGTH].current of
-    0..17: TranslatedStrength := character^.stats[C_Stat.STRENGTH].current;
-    18: case character^.exceptionalStrength of
+  case Types.PCharacter(character)^.stats[C_Stat.STRENGTH].current of
+    0..17: TranslatedStrength := Types.PCharacter(character)^.stats[C_Stat.STRENGTH].current;
+    18: case Types.PCharacter(character)^.exceptionalStrength of
          0: TranslatedStrength := 18;
          1..50: TranslatedStrength := 19;
          51..75: TranslatedStrength := 20;
@@ -870,7 +881,7 @@ begin
          91..99: TranslatedStrength := 22;
          100: TranslatedStrength := 23
        end;
-    19..25: TranslatedStrength := character^.stats[C_Stat.STRENGTH].current + 5
+    19..25: TranslatedStrength := Types.PCharacter(character)^.stats[C_Stat.STRENGTH].current + 5
   end
 end;
 
@@ -879,7 +890,7 @@ var strength: Byte;
 begin
   StrToHitAdjust := 0;
   strength := CharHlp.TranslatedStrength(character);
-  if character^.strengthBonusEnabled <> 0 then
+  if Types.PCharacter(character)^.strengthBonusEnabled <> 0 then
     case strength of
       1..3: StrToHitAdjust := -3;
       4..5: StrToHitAdjust := -2;
@@ -897,7 +908,7 @@ var strength: Byte;
 begin
   StrDamageAdjust := 0;
   strength := CharHlp.TranslatedStrength(character);
-  if character^.strengthBonusEnabled <> 0 then
+  if Types.PCharacter(character)^.strengthBonusEnabled <> 0 then
     case strength of
       1..2: StrDamageAdjust := -2;
       3..5: StrDamageAdjust := -1;
@@ -931,12 +942,12 @@ end;
 procedure RemoveSpell(character: Types.PCharacter; spellId: Byte);
 var index: Byte;
 begin
-  if character^.spells = nil then
+  if Types.PCharacter(character)^.spells = nil then
     Exit;
   index := 0;
   while index <= 73 do begin
-    if character^.spells^.memorized[index] = spellId then begin
-      character^.spells^.memorized[index] := spellId or $80;
+    if Types.PCharacter(character)^.spells^.memorized[index] = spellId then begin
+      Types.PCharacter(character)^.spells^.memorized[index] := spellId or $80;
       index := 74
     end;
     Inc(index)
@@ -947,16 +958,16 @@ procedure RemoveItem(character: Types.PCharacter; item: Types.PItem);
 var current: Types.PItem;
 begin
   if item = nil then
-    TextRend.DisplayAndPause(Yellow, Black, 'Nil Item pointer...')
+    TextRend.DisplayAndPause(Yellow, Black, GDConsts.nilItemText)
   else begin
-    current := character^.items;
+    current := Types.PCharacter(character)^.items;
     if current = item then
-      character^.items := item^.next
+      Types.PCharacter(character)^.items := item^.next
     else
       while (current <> nil) and (current^.next <> item) do
         current := current^.next;
     if current = nil then
-      TextRend.DisplayAndPause(Yellow, Black, 'Tried to Lose item & couldn''t find it!')
+      TextRend.DisplayAndPause(Yellow, Black, GDConsts.missingItemText)
     else begin
       current^.next := item^.next;
       item^.next := nil;
@@ -970,16 +981,16 @@ var
   current: Types.PItem;
   newItem: Types.PItem;
 begin
-  if (GDVars.interfaceState = C_Ifc.IN_COMBAT) and (character^.combat <> nil) and
-      (character^.combat^.notPcNpc = 1) then
+  if (GDVars.interfaceState = C_Ifc.IN_COMBAT) and (Types.PCharacter(character)^.combat <> nil) and
+      (Types.PCharacter(character)^.combat^.notPcNpc = 1) then
     GetMem(newItem, SizeOf(Types.TItem))
   else
     newItem := GameIo.AllocSlot;
   Move(item^, newItem^, SizeOf(Types.TItem));
   newItem^.next := nil;
-  current := character^.items;
+  current := Types.PCharacter(character)^.items;
   if current = nil then
-    character^.items := newItem
+    Types.PCharacter(character)^.items := newItem
   else begin
     while current^.next <> nil do
       current := current^.next;
@@ -1028,17 +1039,18 @@ end;
 procedure DisplayCreatureName(character: Types.PCharacter; column, row: Byte; tail: Boolean);
 var color: Byte;
 begin
-  if character^.enabled = 0 then
+  if Types.PCharacter(character)^.enabled = 0 then
     color := LightRed
-  else if (character^.side = C_Side.ENEMY) and (GDVars.interfaceState = C_Ifc.IN_COMBAT) then
+  else if (Types.PCharacter(character)^.side = C_Side.ENEMY) and
+    (GDVars.interfaceState = C_Ifc.IN_COMBAT) then
     color := Yellow
-  else if character^.levelUpReady <> 0 then
+  else if Types.PCharacter(character)^.levelUpReady <> 0 then
     color := LightMagenta
   else
     color := LightCyan;
-  TextRend.DisplayString(column, row, color, Black, character^.name);
+  TextRend.DisplayString(column, row, color, Black, Types.PCharacter(character)^.name);
   if tail then
-    TextRend.DisplayString(column + Length(character^.name), row, color, Black, '''s')
+    TextRend.DisplayString(column + Length(Types.PCharacter(character)^.name), row, color, Black, '''s')
 end;
 
 procedure CopyIconFacing(cell, half, row: Byte; mirror: Boolean);
@@ -1157,18 +1169,16 @@ begin
     previousY := startY;
     done := False;
     repeat
-      stepX := GDConsts.combatTables.directionX[path[pathIndex]];
-      stepY := GDConsts.combatTables.directionY[path[pathIndex]];
+      stepX := GDConsts.directionX[path[pathIndex]];
+      stepY := GDConsts.directionY[path[pathIndex]];
       Inc(pixelX, stepX);
       Inc(pixelY, stepY);
       if (pace > 0) or (pixelX mod 3 = 0) or (pixelY mod 3 = 0) then begin
         Blit.BlitTileClipped(pixelX, pixelY, frameIndex, GDConsts.saveUnderBit + GDConsts.iconFrame,
-                             GDVars.movingIcon,
-                             GDVars.compositeBuffer);
+                             GDVars.movingIcon, GDVars.compositeBuffer);
         Blit.FlushView;
         Delay(pace);
-        Blit.BlitTileClipped(pixelX, pixelY, 0, GDConsts.pictureMode, GDVars.saveUnder,
-                             GDVars.compositeBuffer);
+        Blit.BlitTileClipped(pixelX, pixelY, 0, GDConsts.pictureMode, GDVars.saveUnder, GDVars.compositeBuffer);
         Inc(frameIndex);
         if frameIndex >= frames then frameIndex := 0
       end;
@@ -1210,8 +1220,8 @@ begin
       pathIndex := pathCount;
       done := False;
       repeat
-        stepX := -GDConsts.combatTables.directionX[path[pathIndex]];
-        stepY := -GDConsts.combatTables.directionY[path[pathIndex]];
+        stepX := -GDConsts.directionX[path[pathIndex]];
+        stepY := -GDConsts.directionY[path[pathIndex]];
         Inc(pixelX, stepX);
         Inc(pixelY, stepY);
         if pixelX > 18 then startX := GDVars.arena^.ox + 6
@@ -1241,14 +1251,12 @@ begin
         CbtMap.ScrollView(Byte(endX), Byte(endY), 3, C_Dir.CENTER);
       pixelX := (endX - GDVars.arena^.ox) * 3;
       pixelY := (endY - GDVars.arena^.oy) * 3;
-      Blit.BlitTileClipped(pixelX, pixelY, frameIndex, GDConsts.saveUnderBit + GDConsts.iconFrame,
-                           GDVars.movingIcon,
+      Blit.BlitTileClipped(pixelX, pixelY, frameIndex, GDConsts.saveUnderBit + GDConsts.iconFrame, GDVars.movingIcon,
                            GDVars.compositeBuffer);
       if pace > 0 then begin
         Blit.FlushView;
         Delay(pace);
-        Blit.BlitTileClipped(pixelX, pixelY, 0, GDConsts.pictureMode, GDVars.saveUnder,
-                             GDVars.compositeBuffer)
+        Blit.BlitTileClipped(pixelX, pixelY, 0, GDConsts.pictureMode, GDVars.saveUnder, GDVars.compositeBuffer)
       end
     end
   until lastPass;
@@ -1286,12 +1294,10 @@ begin
     for repetition := 0 to repetitions do
       for frame := 0 to 3 do begin
         Blit.BlitTileClipped(gridColumn, gridRow, frame, GDConsts.saveUnderBit + GDConsts.iconFrame,
-                             GDVars.movingIcon,
-                             GDVars.compositeBuffer);
+                             GDVars.movingIcon, GDVars.compositeBuffer);
         Blit.FlushView;
         Delay(70);
-        Blit.BlitTileClipped(gridColumn, gridRow, 0, GDConsts.pictureMode, GDVars.saveUnder,
-                             GDVars.compositeBuffer)
+        Blit.BlitTileClipped(gridColumn, gridRow, 0, GDConsts.pictureMode, GDVars.saveUnder, GDVars.compositeBuffer)
       end;
     Blit.FlushView;
     if repetitions = 0 then
@@ -1300,16 +1306,16 @@ begin
     CharHlp.PrintCreatureMessage(character, message, 10, True)
 end;
 
-function HasEffect(character: Types.PCharacter; effectId: Byte; var effect: Types.PEffect): Boolean;
+function HasEffect(character: Pointer; effectId: Byte; var effect: Pointer): Boolean;
 var found: Boolean;
 begin
   found := False;
-  effect := character^.effects;
+  effect := Types.PCharacter(character)^.effects;
   while (effect <> nil) and not found do begin
-    if effect^.effectId = effectId then
+    if Types.PEffect(effect)^.effectId = effectId then
       found := True
     else
-      effect := effect^.next
+      effect := Types.PEffect(effect)^.next
   end;
   HasEffect := found
 end;
@@ -1321,44 +1327,44 @@ var
 begin
   overkill := 0;
   remaining := 0;
-  if character^.hitPoints >= damage then
-    remaining := character^.hitPoints - damage
+  if Types.PCharacter(character)^.hitPoints >= damage then
+    remaining := Types.PCharacter(character)^.hitPoints - damage
   else
-    overkill := damage - character^.hitPoints;
-  if (overkill > 9) or ((remaining = 0) and (character^.status = C_Status.ANIMATED)) then
-    character^.status := C_Status.DEAD_STATUS
+    overkill := damage - Types.PCharacter(character)^.hitPoints;
+  if (overkill > 9) or ((remaining = 0) and (Types.PCharacter(character)^.status = C_Status.ANIMATED)) then
+    Types.PCharacter(character)^.status := C_Status.DEAD_STATUS
   else if overkill > 0 then begin
-    character^.status := C_Status.DYING;
+    Types.PCharacter(character)^.status := C_Status.DYING;
     if GDVars.interfaceState = C_Ifc.IN_COMBAT then
-      character^.combat^.dyingTurns := overkill
+      Types.PCharacter(character)^.combat^.dyingTurns := overkill
   end else if remaining = 0 then
-    character^.status := C_Status.UNCONSCIOUS;
-  if not (character^.status in [C_Status.OKAY, C_Status.ANIMATED]) then begin
-    character^.enabled := 0;
-    character^.hitPoints := 0;
+    Types.PCharacter(character)^.status := C_Status.UNCONSCIOUS;
+  if not (Types.PCharacter(character)^.status in [C_Status.OKAY, C_Status.ANIMATED]) then begin
+    Types.PCharacter(character)^.enabled := 0;
+    Types.PCharacter(character)^.hitPoints := 0;
     if GDVars.interfaceState = C_Ifc.IN_COMBAT then begin
-      Dec(GDVars.teamCount[character^.side]);
-      character^.combat^.initiative := 0
+      Dec(GDVars.teamCount[Types.PCharacter(character)^.side]);
+      Types.PCharacter(character)^.combat^.initiative := 0
     end
   end else
-    character^.hitPoints := remaining
+    Types.PCharacter(character)^.hitPoints := remaining
 end;
 
 procedure AnnounceHealStatus(character: Types.PCharacter);
 var message: Types.TString40;
 begin
-  if character^.hitPoints = character^.maxHitPoints then
-    message := 'is fully healed'
+  if Types.PCharacter(character)^.hitPoints = Types.PCharacter(character)^.maxHitPoints then
+    message := GDConsts.fullyHealedText
   else
-    message := 'is partially healed';
+    message := GDConsts.partiallyHealedText;
   CharHlp.PrintCreatureMessage(character, message, 10, True);
   if GDVars.interfaceState <> C_Ifc.IN_COMBAT then
-    CharHlp.DisplayRoster(character, character = GDVars.currentCharacter)
+    CharHlp.DisplayRoster(character, character = Pointer(GDVars.currentCharacter))
 end;
 
 function EnemyTeam(character: Types.PCharacter): ShortInt;
 begin
-  if character^.side = C_Side.PLAYER then
+  if Types.PCharacter(character)^.side = C_Side.PLAYER then
     EnemyTeam := 1
   else
     EnemyTeam := 0
@@ -1382,21 +1388,21 @@ var
   numberTargets: Byte;
   numberMatching: Byte;
   index: Byte;
-  effect: Types.PEffect;
+  effect: Pointer;
   found: Boolean;
   targetSide: ShortInt;
 begin
-  Pathing.BuildTargetList(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), range,
-                          GDConsts.combatTables.anyDirection, CbtMap.GetIconSize(character), GDVars.arena);
+  Pathing.BuildTargetList(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), range, GDConsts.anyDirection,
+                          CbtMap.GetIconSize(character), GDVars.arena);
   numberTargets := GDVars.targetCount;
   numberMatching := 0;
   if sameSide then
-    targetSide := character^.side
+    targetSide := Types.PCharacter(character)^.side
   else
     targetSide := CharHlp.EnemyTeam(character);
   if numberTargets > 0 then begin
     for index := 1 to numberTargets do
-      if GDVars.creatures[GDVars.targetList[index].characterIndex]^.side = targetSide then begin
+      if Types.PCharacter(GDVars.creatures[GDVars.targetList[index].characterIndex])^.side = targetSide then begin
         Inc(numberMatching);
         Move(GDVars.targetList[index], GDVars.targetList[numberMatching], SizeOf(Types.TTargetEntry))
       end;
@@ -1427,8 +1433,8 @@ var savedTargets: array[1..255] of Types.TTargetEntry;
 begin
   Move(GDVars.targetList, savedTargets, SizeOf(GDVars.targetList));
   GDVars.arena^.distMode := 1;
-  Pathing.BuildTargetList(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), 255,
-                          GDConsts.combatTables.anyDirection, CbtMap.GetIconSize(character), GDVars.arena);
+  Pathing.BuildTargetList(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), 255, GDConsts.anyDirection,
+                          CbtMap.GetIconSize(character), GDVars.arena);
   GDVars.arena^.distMode := 0;
   index := 1;
   while (GDVars.creatures[GDVars.targetList[index].characterIndex] <> other) and (index < GDVars.targetCount) do
@@ -1439,19 +1445,19 @@ end;
 
 function EndActions(character: Types.PCharacter): Boolean;
 begin
-  character^.combat^.initiative := 0;
-  character^.combat^.spellCast := 0;
-  character^.combat^.guarding := 0;
-  character^.combat^.movement := 0;
+  Types.PCharacter(character)^.combat^.initiative := 0;
+  Types.PCharacter(character)^.combat^.spellCast := 0;
+  Types.PCharacter(character)^.combat^.guarding := 0;
+  Types.PCharacter(character)^.combat^.movement := 0;
   EndActions := True
 end;
 
 function Guard(character: Types.PCharacter): Boolean;
 begin
   Guard := CharHlp.EndActions(character);
-  if character^.combat^.panicked = 0 then begin
-    character^.combat^.guarding := 1;
-    CharHlp.PrintBottomLine('Guarding')
+  if Types.PCharacter(character)^.combat^.panicked = 0 then begin
+    Types.PCharacter(character)^.combat^.guarding := 1;
+    CharHlp.PrintBottomLine(GDConsts.guardingText)
   end
 end;
 
@@ -1460,7 +1466,7 @@ var
   priestLevel: Byte;
   paladinLevel: Byte;
   moonIndex: Integer;
-  effect: Types.PEffect;
+  effect: Pointer;
 begin
   with GDVars.currentCharacter^ do begin
   if (classLevels[C_Class.CLERIC] = 0) and (classLevels[C_Class.MAGE] = 0) and
@@ -1481,7 +1487,7 @@ begin
         paladinLevel := GDVars.currentCharacter^.classLevels[C_Class.RANGER];
         if (classLevels[C_Class.MAGE] > 0) and (GDVars.currentCharacter^.robeOrder > 0) then begin
           moonIndex := robeOrder + $1F8;
-          case GDVars.zone0^.moonPhase[moonIndex + $4B00] of
+          case GDVars.zone0^.ecl[moonIndex + $4B00] of
             0: Dec(priestLevel);
             2: if classLevels[C_Class.MAGE] > 5 then
                 Inc(priestLevel)
@@ -1513,7 +1519,7 @@ begin
       CharHlp.DisplayParty(GDVars.currentCharacter);
       CharHlp.PrintMiscInfo;
       if GDVars.interfaceState = C_Ifc.IN_VAULT then
-        TextRend.DisplayString(1, 15, LightGreen, Black, 'Bank Of Gargath')
+        TextRend.DisplayString(1, 15, LightGreen, Black, GDConsts.noncombatMessage)
     end;
     C_Ifc.CAMPING: begin
       Border.DrawViewFrame;
@@ -1556,13 +1562,13 @@ begin
   if Length(minuteText) < 2 then minuteText := '0' + minuteText;
   if GDVars.zone0^.automapLock = 0 then
     infoText := CharHlp.ByteToString(savedX) + ',' + CharHlp.ByteToString(savedY) + ' ';
-  infoText := infoText + GDConsts.directionLegend.names[GDVars.mapState.facing] + ' ';
+  infoText := infoText + GDConsts.directionNames[GDVars.mapState.facing] + ' ';
   infoText := infoText + hourText + ':' + minuteText;
   if GDVars.traceActive <> 0 then infoText := infoText + '*';
   if GDVars.interfaceState = C_Ifc.CAMPING then
-    infoText := infoText + ' camping'
+    infoText := infoText + GDConsts.combatInfoText
   else if (GDVars.zone1^.searchFlags[GDConsts.searchFlagsIndex + $7C00] and GDConsts.searchMask[0]) > 0 then
-    infoText := infoText + ' search';
+    infoText := infoText + GDConsts.exploreInfoText;
   Border.ClearBox(17, 15, 38, 15);
   TextRend.DisplayString(17, 15, LightGreen, Black, infoText)
 end;
@@ -1576,7 +1582,8 @@ end;
 
 function HasRangedWeapon(character: Types.PCharacter): Boolean;
 begin
-  if (character^.equipped[0] <> nil) and (GDVars.baseItems[character^.equipped[0]^.itemType].range > 1)
+  if (Types.PCharacter(character)^.equipped[0] <> nil) and
+      (GDVars.baseItems[Types.PCharacter(character)^.equipped[0]^.itemType].range > 1)
   then
     HasRangedWeapon := True
   else
@@ -1585,7 +1592,8 @@ end;
 
 function HasReadiedHoopak(character: Types.PCharacter): Boolean;
 begin
-  if (character^.equipped[0] <> nil) and (character^.equipped[0]^.itemType = 67) then
+  if (Types.PCharacter(character)^.equipped[0] <> nil) and
+      (Types.PCharacter(character)^.equipped[0]^.itemType = 67) then
     HasReadiedHoopak := True
   else
     HasReadiedHoopak := False
@@ -1594,8 +1602,8 @@ end;
 function HasThrowableWeapon(character: Types.PCharacter): Boolean;
 begin
   if CharHlp.HasRangedWeapon(character) and
-      (((GDVars.baseItems[character^.equipped[0]^.itemType].flags and $14) = $14) or
-       (character^.equipped[0]^.itemType = 67)) then
+      (((GDVars.baseItems[Types.PCharacter(character)^.equipped[0]^.itemType].flags and $14) = $14) or
+       (Types.PCharacter(character)^.equipped[0]^.itemType = 67)) then
     HasThrowableWeapon := True
   else
     HasThrowableWeapon := False
@@ -1606,7 +1614,7 @@ var weapon: Types.PItem;
     properties: Byte;
 begin
   FindDamagingRangedWeapon := False;
-  weapon := character^.equipped[0];
+  weapon := Types.PCharacter(character)^.equipped[0];
   selected := nil;
   properties := 0;
   if weapon <> nil then begin
@@ -1615,9 +1623,9 @@ begin
       selected := weapon;
     if (properties and $08) <> 0 then begin
       if (properties and $01) <> 0 then
-        selected := character^.equipped[11];
+        selected := Types.PCharacter(character)^.equipped[11];
       if (properties and $80) <> 0 then
-        selected := character^.equipped[12]
+        selected := Types.PCharacter(character)^.equipped[12]
     end
   end;
   if (selected <> nil) or (properties = $0A) then
@@ -1637,7 +1645,7 @@ begin
       if apply then begin
         character^.status := C_Status.UNCONSCIOUS;
         character^.combat^.dyingTurns := 0;
-        CharHlp.PrintCreatureMessage(character, 'is bandaged', 10, True);
+        CharHlp.PrintCreatureMessage(character, GDConsts.bandageText, 10, True);
         apply := False
       end
     end;
@@ -1648,36 +1656,36 @@ end;
 
 procedure SelectChar(prompt: Types.TString40; allowNil: Boolean; mode: Byte; var selected: Pointer);
 var
-  scanCode: Byte;
+  pressedKey: Byte;
   key: Byte;
   { Unused in this version; see the other implementations of this routine. }
   reinterpret: Byte;
-  animatePortrait: Boolean;
+  highlight: Boolean;
   cursor: Types.PCharacter;
-  savedMouseMode: Byte;
-  savedExtendedMode: Byte;
+  savedMessage: Byte;
+  savedState: Byte;
 begin
-  savedMouseMode := GDVars.mouseMode;
+  savedMessage := GDVars.mouseMode;
   GDVars.selectionMode := mode;
   GDVars.selectionCharacter := GDVars.currentCharacter;
   key := 255;
-  savedExtendedMode := GDVars.extendedMode;
+  savedState := GDVars.extendedMode;
   GDVars.extendedMode := 0;
   while (key >= 2) and (key <> Ord(C_Keys.ESCAPE)) do begin
     CharHlp.DisplayParty(selected);
     if (GDVars.interfaceState = C_Ifc.CAMPING) or (GDVars.interfaceState = C_Ifc.LOOT) then
-      animatePortrait := True
+      highlight := True
     else
-      animatePortrait := False;
+      highlight := False;
     if GDVars.interfaceState = C_Ifc.MAIN_MENU then GDVars.mouseMode := 1;
     if allowNil then MenuCore.EnableChoices(1)
     else MenuCore.EnableChoices(0);
-    key := MenuCore.MenuHorizontal(prompt + ' ', GDConsts.selectMenuText, 1, Byte(animatePortrait));
-    GDVars.mouseMode := savedMouseMode;
+    key := MenuCore.MenuHorizontal(prompt + ' ', GDConsts.selectMenuText, 1, Byte(highlight));
+    GDVars.mouseMode := savedMessage;
     cursor := selected;
     if GDVars.menuExtendedKey <> 0 then begin
-      scanCode := key;
-      case scanCode of
+      pressedKey := key;
+      case pressedKey of
         Ord(C_Keys.ESCAPE): if allowNil then cursor := nil;
         Ord(C_Keys.DOWN): begin
           cursor := cursor^.next;
@@ -1694,7 +1702,7 @@ begin
           end else begin
             cursor := GDVars.partyHead;
             if selected <> GDVars.partyHead then begin
-              while cursor^.next <> selected do
+              while cursor^.next <> Types.PCharacter(selected) do
                 cursor := cursor^.next
             end else begin
               while cursor^.next <> nil do cursor := cursor^.next
@@ -1705,7 +1713,7 @@ begin
       cursor := nil;
     selected := cursor
   end;
-  GDVars.extendedMode := savedExtendedMode;
+  GDVars.extendedMode := savedState;
   GDVars.selectionMode := 0
 end;
 
@@ -1751,18 +1759,18 @@ function ClassSuborderIndex(character: Types.PCharacter; classId: Byte): Byte;
 var index: Byte;
 begin
   case classId of
-    C_Class.CLERIC: if character^.deity <= 4 then
+    C_Class.CLERIC: if Types.PCharacter(character)^.deity <= 4 then
         index := 0
       else
         index := 1;
-    C_Class.KNIGHT: case character^.knightOrder of
+    C_Class.KNIGHT: case Types.PCharacter(character)^.knightOrder of
         1: index := 3;
         2: index := 4;
         3: index := 5
       end;
     C_Class.FIGHTER: index := 2;
     C_Class.RANGER: index := 6;
-    C_Class.MAGE: if character^.robeOrder = 1 then
+    C_Class.MAGE: if Types.PCharacter(character)^.robeOrder = 1 then
         index := 7
       else
         index := 8;
@@ -1782,12 +1790,15 @@ begin
   found := False;
   classId := 0;
   while (classId <= 7) and not found do begin
-    if (character^.classLevels[classId] > 0) and (character^.classLevels[classId] < 18) then begin
-      level := character^.classLevels[classId];
-      requiredExperience := GDConsts.classProgression[ShortInt(CharHlp.ClassSuborderIndex(character,
+    if (Types.PCharacter(character)^.classLevels[classId] > 0) and
+        (Types.PCharacter(character)^.classLevels[classId] < 18) then begin
+      level := Types.PCharacter(character)^.classLevels[classId];
+      requiredExperience :=
+        GDConsts.classProgression[ShortInt(CharHlp.ClassSuborderIndex(character,
                                                                       classId))].experience[ShortInt(Succ(level))];
-      capped := GDConsts.racialLevelCaps[character^.race, classId] <= level;
-      found := (character^.experience >= requiredExperience) and (requiredExperience > 0) and not capped
+      capped := GDConsts.racialLevelCaps[Types.PCharacter(character)^.race, classId] <= level;
+      found := (Types.PCharacter(character)^.experience >= requiredExperience) and (requiredExperience > 0) and
+        not capped
     end;
     Inc(classId)
   end;
@@ -1849,7 +1860,7 @@ end;
 function ClassConAdj(character: Types.PCharacter; classId: Byte): ShortInt;
 var adjustment: ShortInt;
 begin
-  case character^.stats[C_Stat.CONSTITUTION].current of
+  case Types.PCharacter(character)^.stats[C_Stat.CONSTITUTION].current of
     3: adjustment := -2;
     4..6: adjustment := -1;
     7..14: adjustment := 0;
@@ -1858,14 +1869,11 @@ begin
     17..19:
       if (classId = C_Class.FIGHTER) or (classId = C_Class.RANGER) or (classId = C_Class.PALADIN) or
           (classId = C_Class.KNIGHT) then
-        adjustment := character^.stats[C_Stat.CONSTITUTION].current - 14
+        adjustment := Types.PCharacter(character)^.stats[C_Stat.CONSTITUTION].current - 14
       else
         adjustment := 2
   end;
   ClassConAdj := adjustment
 end;
-
-procedure NoopCharHlp;
-begin end;
 begin
 end.

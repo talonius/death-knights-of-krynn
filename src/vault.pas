@@ -1,5 +1,5 @@
 { Vault -- the vault: the screen where the party stores money and items between adventures. EclVm opens it. }
-{$O+,F+,I-,V+}
+{$O+,F+,I-}
 unit Vault;
 interface
 
@@ -10,7 +10,8 @@ interface
   next save renames over vault<letter>.dat. }
 procedure PoolVault;
 implementation
-uses C_Ifc, C_Keys, Types, CharHlp, SaveLoad, MenuCore, Money, ViewChar, PostCbt, TextRend, GDConsts, GDVars;
+uses C_Ifc, C_Keys, CharHlp, SaveLoad, MenuCore, Money, ViewChar, PostCbt, TextRend, GDConsts, GDVars,
+  Types;
 
 procedure PoolVault;
 var
@@ -28,20 +29,25 @@ var
   savedChoice: Byte;
   old: Types.PItem;
 begin
-  GDVars.interfaceState := C_Ifc.IN_VAULT; GDVars.noncombatPrepared := 1;
+  GDVars.interfaceState := C_Ifc.IN_VAULT;
+  GDVars.noncombatPrepared := 1;
   CharHlp.DisplayNoncombatInterface;
   GDVars.noncombatPrepared := 1;
   CharHlp.DisplayParty(GDVars.currentCharacter);
   if not SaveLoad.CheckSaveDir then Exit;
   while GDVars.treasureItems <> nil do begin
-    old := GDVars.treasureItems; GDVars.treasureItems := GDVars.treasureItems^.next; Dispose(old)
+    old := GDVars.treasureItems;
+    GDVars.treasureItems := GDVars.treasureItems^.next;
+    Dispose(old)
   end;
   GDVars.treasureItems := nil;
   SaveLoad.LoadVault(hasMoney, hasItems);
   GDVars.treasureActive := 0;
-  leaveMenu := False; savedChoice := 1;
+  leaveMenu := False;
+  savedChoice := 1;
   repeat
-    FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), 0); choiceCount := 0;
+    FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), 0);
+    choiceCount := 0;
     MenuCore.AppendChoice(0, choiceCount);
     Money.DetermineTreasure(hasMoney, hasItems);
     if hasMoney or hasItems then
@@ -54,10 +60,12 @@ begin
       MenuCore.AppendChoice(4, choiceCount);
     MenuCore.AppendChoice(5, choiceCount);
     GDVars.selectedChoice := savedChoice;
-    choice := MenuCore.MenuHorizontal('', GDConsts.vaultMenu, 1, 0);
+    choice := MenuCore.MenuHorizontal
+      ('', GDConsts.vaultMenu, 1, 0);
     savedChoice := GDVars.selectedChoice;
     if (GDVars.menuExtendedKey <> 0) and (choice = Ord(C_Keys.ESCAPE)) then begin
-      GDVars.menuExtendedKey := 0; choice := 5
+      GDVars.menuExtendedKey := 0;
+      choice := 5
     end;
     done := False;
     if GDVars.menuExtendedKey = 0 then begin
@@ -66,13 +74,13 @@ begin
         1: PostCbt.LootTakeMenu(hasMoney, hasItems);
         2: Money.PoolMoney;
         3: begin
-            ViewChar.DropMoneyMenu(False);
-            TextRend.ClearRect(1, 17, 38, 22)
-          end;
+             ViewChar.DropMoneyMenu(False);
+             TextRend.ClearRect(1, 17, 38, 22);
+           end;
         4: begin
-            ViewChar.UseItemMenu(done);
-            CharHlp.DisplayNoncombatInterface
-          end;
+             ViewChar.UseItemMenu(done);
+             CharHlp.DisplayNoncombatInterface
+           end;
         5: leaveMenu := True
       end
     end else begin

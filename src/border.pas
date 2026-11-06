@@ -44,7 +44,7 @@ procedure DrawTitleInset;
   @param(y2 Bottom row.) }
 procedure ClearBox(x1, y1, x2, y2: ShortInt);
 implementation
-uses C_Video, Mouse, TextRend, Sym8x8, GDConsts, GDVars, Types;
+uses C_Video, GDConsts, GDVars, Mouse, TextRend, Sym8x8, Types;
 type
   TCga = array[0..99, 0..79] of Byte;
   TTandy = array[0..49, 0..159] of Byte;

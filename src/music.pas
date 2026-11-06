@@ -65,10 +65,11 @@ begin
 end;
 
 procedure LoadDriverCode;
-var data: Types.PBytes;
+var
+  data: Types.PBytes;
 begin
   data := nil;
-  DaxIo.LoadDax('MUSIC', GDConsts.daxExtension, 0, GDVars.musicDriverSize, Types.PBytes(data));
+  DaxIo.LoadDax('MUSIC', GDConsts.daxExtension, 0, GDVars.musicDriverSize, data);
   if GDVars.musicDriverSize = 0 then begin
     WriteLn('unable to load com file');
     GameIo.ExitGame;
@@ -87,7 +88,7 @@ var
   { Unused in this version; see the other implementations of this routine. }
   n: Byte;
 begin
-  DaxIo.LoadDax('MUSIC', GDConsts.daxExtension, fileId, GDVars.musicDataSize, Types.PBytes(data));
+  DaxIo.LoadDax('MUSIC', GDConsts.daxExtension, fileId, GDVars.musicDataSize, data);
   FillChar(GDVars.musicDataBuf^, C_Music.DATA_BUFFER_SIZE, 0);
   GDVars.musicData := GDVars.musicDataBuf;
   Move(data^, GDVars.musicData^, GDVars.musicDataSize);

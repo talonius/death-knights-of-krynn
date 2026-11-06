@@ -3,7 +3,7 @@
 {$F+,O+,S-,R-,V-,B-,I-}
 unit GameIo;
 interface
-uses Dos, Crt, C_Keys, C_Sound, Mouse, Joystick, SoundDrv, MusDrv, GDConsts, GDVars, Types;
+uses GDConsts, GDVars, Dos, Crt, Mouse, Joystick, SoundDrv, MusDrv, C_Keys, C_Sound, Types;
 
 { Hides and resets the mouse, shuts the music driver down, resets the sound card if one is active, restores the video
   mode the game started in and halts. }

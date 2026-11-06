@@ -1,16 +1,18 @@
-; CGAGLYPH, EGAGLYPH, TANDYGLYPH(col, row: Word; fg, bg, charIdx: Byte), near, Pascal order: each draws the 8x8
-; glyph TextRend.RenderChar has copied into CURRENTGLYPH at character cell (col, row) in fg on bg -- CGA
-; at $B800 with the colors mapped through CGAATTRIBUTECOLORS, EGA at $A000 through the graphics
-; controller, Tandy at $B800.
-DATA    SEGMENT WORD PUBLIC
-        EXTRN   CURRENTGLYPH : BYTE
-        EXTRN   CGAATTRIBUTECOLORS : BYTE
-DATA    ENDS
+; RENDERCHARCGA, RENDERCHAREGA, RENDERCHARTANDY(col, row: Word; fg, bg, glyphIdx: Byte), near, Pascal
+; order: each draws the 8x8 glyph TextRend.RenderChar has copied into CURRENTGLYPH at character cell (col,
+; row) in fg on bg -- CGA at $B800 with the colors mapped through CGAATTRIBUTECOLORS, EGA at $A000 through the
+; graphics controller, Tandy at $B800.
 DGROUP  GROUP   DATA
+DATA    SEGMENT WORD PUBLIC
+        EXTRN   CURRENTGLYPH:BYTE
+        EXTRN   CGAATTRIBUTECOLORS:BYTE
+DATA    ENDS
 CODE    SEGMENT BYTE PUBLIC
         ASSUME  CS:CODE, DS:DGROUP
-        PUBLIC  CGAGLYPH, EGAGLYPH, TANDYGLYPH
-CGAGLYPH PROC NEAR
+        PUBLIC  RENDERCHARCGA
+        PUBLIC  RENDERCHAREGA
+        PUBLIC  RENDERCHARTANDY
+RENDERCHARCGA   PROC NEAR
         push    bp
         mov     bp,sp
         push    ss
@@ -23,10 +25,10 @@ CGAGLYPH PROC NEAR
         add     ax,bx
         mov     di,ax
         xor     bx,bx
-        mov     bl,[bp+08h]
-        mov     dl,CGAATTRIBUTECOLORS[bx]
-        mov     bl,[bp+06h]
-        mov     dh,CGAATTRIBUTECOLORS[bx]
+        mov     bl,[bp+8]
+        mov     dl,[bx+CGAATTRIBUTECOLORS]
+        mov     bl,[bp+6]
+        mov     dh,[bx+CGAATTRIBUTECOLORS]
         xor     bx,bx
         mov     ah,1
         mov     cx,4
@@ -36,28 +38,29 @@ cga_outer:
         mov     es,cx
         mov     cx,2
         inc     di
-cga_evn_mid:
+cga_midA:
         push    cx
         mov     cx,4
         mov     al,0
-cga_evn:
-        test    CURRENTGLYPH[bx],ah
-        jz      cga_evn0
+cga_innerA:
+        test    byte ptr [bx+CURRENTGLYPH],ah
+        je      cga_skipA
         or      al,dl
-        jmp     cga_evn1
-cga_evn0:
+        jmp     short cga_afterA
+        nop
+cga_skipA:
         or      al,dh
-cga_evn1:
+cga_afterA:
         rol     dl,1
         rol     dl,1
         rol     dh,1
         rol     dh,1
         rol     ah,1
-        loop    cga_evn
+        loop    cga_innerA
         mov     es:[di],al
         dec     di
         pop     cx
-        loop    cga_evn_mid
+        loop    cga_midA
         inc     bx
         inc     di
         mov     ah,1
@@ -66,28 +69,29 @@ cga_evn1:
         mov     es,cx
         mov     cx,2
         inc     di
-cga_odd_mid:
+cga_midB:
         push    cx
         mov     cx,4
         mov     al,0
-cga_odd:
-        test    CURRENTGLYPH[bx],ah
-        jz      cga_odd0
+cga_innerB:
+        test    byte ptr [bx+CURRENTGLYPH],ah
+        je      cga_skipB
         or      al,dl
-        jmp     cga_odd1
-cga_odd0:
+        jmp     short cga_afterB
+        nop
+cga_skipB:
         or      al,dh
-cga_odd1:
+cga_afterB:
         rol     dl,1
         rol     dl,1
         rol     dh,1
         rol     dh,1
         rol     ah,1
-        loop    cga_odd
+        loop    cga_innerB
         mov     es:[di],al
         dec     di
         pop     cx
-        loop    cga_odd_mid
+        loop    cga_midB
         inc     bx
         add     di,51h
         pop     cx
@@ -96,8 +100,8 @@ cga_odd1:
         pop     ss
         pop     bp
         ret     0Ah
-CGAGLYPH ENDP
-EGAGLYPH PROC NEAR
+RENDERCHARCGA   ENDP
+RENDERCHAREGA   PROC NEAR
         push    bp
         mov     bp,sp
         push    ss
@@ -120,15 +124,15 @@ EGAGLYPH PROC NEAR
         xor     bx,bx
         mov     cx,8
 ega_row:
-        mov     ah,CURRENTGLYPH[bx]
+        mov     ah,[bx+CURRENTGLYPH]
         mov     al,8
         out     dx,ax
-        mov     al,[bp+08h]
+        mov     al,[bp+8]
         and     es:[di],al
         not     ah
         mov     al,8
         out     dx,ax
-        mov     al,[bp+06h]
+        mov     al,[bp+6]
         and     es:[di],al
         add     di,28h
         inc     bx
@@ -145,8 +149,8 @@ ega_row:
         pop     ss
         pop     bp
         ret     0Ah
-EGAGLYPH ENDP
-TANDYGLYPH PROC NEAR
+RENDERCHAREGA   ENDP
+RENDERCHARTANDY PROC NEAR
         push    bp
         mov     bp,sp
         push    ss
@@ -159,29 +163,30 @@ TANDYGLYPH PROC NEAR
         shl     bx,1
         add     ax,bx
         mov     di,ax
-        mov     dl,[bp+06h]
-        mov     dh,[bp+08h]
+        mov     dl,[bp+6]
+        mov     dh,[bp+8]
         xor     bx,bx
         mov     ah,1
         mov     cx,2
-tdy_outer:
+tdy_bank:
         push    cx
         mov     cx,0B800h
         mov     es,cx
         mov     cx,4
         add     di,3
-tdy_b0_mid:
+tdy_colB0:
         push    cx
         mov     cx,2
         mov     al,0
-tdy_b0:
-        test    CURRENTGLYPH[bx],ah
-        jz      tdy_b0z
+tdy_rowB0:
+        test    byte ptr [bx+CURRENTGLYPH],ah
+        je      tdy_sB0
         or      al,dh
-        jmp     tdy_b0c
-tdy_b0z:
+        jmp     short tdy_aB0
+        nop
+tdy_sB0:
         or      al,dl
-tdy_b0c:
+tdy_aB0:
         push    cx
         mov     cx,4
         rol     dl,cl
@@ -189,28 +194,29 @@ tdy_b0c:
         rol     dh,cl
         rol     ah,1
         pop     cx
-        loop    tdy_b0
+        loop    tdy_rowB0
         mov     es:[di],al
         dec     di
         pop     cx
-        loop    tdy_b0_mid
+        loop    tdy_colB0
         add     di,4
         inc     bx
         mov     cx,0BA00h
         mov     es,cx
         mov     cx,4
-tdy_b1_mid:
+tdy_colB1:
         push    cx
         mov     cx,2
         mov     al,0
-tdy_b1:
-        test    CURRENTGLYPH[bx],ah
-        jz      tdy_b1z
+tdy_rowB1:
+        test    byte ptr [bx+CURRENTGLYPH],ah
+        je      tdy_sB1
         or      al,dh
-        jmp     tdy_b1c
-tdy_b1z:
+        jmp     short tdy_aB1
+        nop
+tdy_sB1:
         or      al,dl
-tdy_b1c:
+tdy_aB1:
         push    cx
         mov     cx,4
         rol     dl,cl
@@ -218,28 +224,29 @@ tdy_b1c:
         rol     dh,cl
         rol     ah,1
         pop     cx
-        loop    tdy_b1
+        loop    tdy_rowB1
         mov     es:[di],al
         dec     di
         pop     cx
-        loop    tdy_b1_mid
+        loop    tdy_colB1
         add     di,4
         inc     bx
         mov     cx,0BC00h
         mov     es,cx
         mov     cx,4
-tdy_b2_mid:
+tdy_colB2:
         push    cx
         mov     cx,2
         mov     al,0
-tdy_b2:
-        test    CURRENTGLYPH[bx],ah
-        jz      tdy_b2z
+tdy_rowB2:
+        test    byte ptr [bx+CURRENTGLYPH],ah
+        je      tdy_sB2
         or      al,dh
-        jmp     tdy_b2c
-tdy_b2z:
+        jmp     short tdy_aB2
+        nop
+tdy_sB2:
         or      al,dl
-tdy_b2c:
+tdy_aB2:
         push    cx
         mov     cx,4
         rol     dl,cl
@@ -247,28 +254,29 @@ tdy_b2c:
         rol     dh,cl
         rol     ah,1
         pop     cx
-        loop    tdy_b2
+        loop    tdy_rowB2
         mov     es:[di],al
         dec     di
         pop     cx
-        loop    tdy_b2_mid
+        loop    tdy_colB2
         add     di,4
         inc     bx
         mov     cx,0BE00h
         mov     es,cx
         mov     cx,4
-tdy_b3_mid:
+tdy_colB3:
         push    cx
         mov     cx,2
         mov     al,0
-tdy_b3:
-        test    CURRENTGLYPH[bx],ah
-        jz      tdy_b3z
+tdy_rowB3:
+        test    byte ptr [bx+CURRENTGLYPH],ah
+        je      tdy_sB3
         or      al,dh
-        jmp     tdy_b3c
-tdy_b3z:
+        jmp     short tdy_aB3
+        nop
+tdy_sB3:
         or      al,dl
-tdy_b3c:
+tdy_aB3:
         push    cx
         mov     cx,4
         rol     dl,cl
@@ -276,22 +284,22 @@ tdy_b3c:
         rol     dh,cl
         rol     ah,1
         pop     cx
-        loop    tdy_b3
+        loop    tdy_rowB3
         mov     es:[di],al
         dec     di
         pop     cx
-        loop    tdy_b3_mid
+        loop    tdy_colB3
         inc     bx
         add     di,0A1h
         pop     cx
         dec     cx
-        jz      tdy_done
-        jmp     tdy_outer
+        je      tdy_done
+        jmp     tdy_bank
 tdy_done:
         pop     ds
         pop     ss
         pop     bp
         ret     0Ah
-TANDYGLYPH ENDP
+RENDERCHARTANDY ENDP
 CODE    ENDS
         END

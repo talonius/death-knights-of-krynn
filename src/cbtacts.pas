@@ -5,31 +5,13 @@
 unit CbtActs;
 interface
 uses C_Class, C_Cond, C_Dir, C_Effect, C_Keys, C_Race, C_Side, C_Spell, C_Stat, C_Status, C_Terr, GDConsts, GDVars,
-  Types, CharHlp, FxEngine, CbtMap, TextRend, Music, MenuCore, Pathing, Magic, Border, GameIo, ViewChar, Crt;
+  Types, CharHlp, FxEngine, CbtMap, TextRend, Music, MenuCore, Pathing, Magic, Border, Crt, ViewChar, GameIo;
 
 { Readies a creature as a round starts: clears its spell, lets it cast unless it stands in a stinking cloud, gives it
   its attacks in both forms, rolls its initiative (d6 plus its dexterity missile adjustment, at least 1, 6 less when its
   side is surprised, 0 when out of range or disabled) and recalculates its movement.
   @param(creature The creature.) }
 procedure BeginRound(creature: Types.PCharacter);
-
-{ Rolls the damage of one hit in an attack form into currentDamage: dice plus modifier (not below 0), after the
-  attacker's and the defender's weapon-damage conditions; a backstab multiplies it by 2 + (thief level - 1) div 4.
-  @param(attacker Creature attacking.)
-  @param(defender Creature hit.)
-  @param(phase Attack form, 1 or 2.) }
-procedure CalcWeaponDamage(attacker, defender: Types.PCharacter; phase: Byte);
-
-{ Reports one attack and applies its result. Damage interrupts a spell being cast. A creature that goes down is
-  announced as dying or killed (unless bit 3 of its immunities is set), its hit-point effects run, and it is removed
-  from the map. The hit or miss line is not printed for a defender that is already gone.
-  @param(attacker The attacker.)
-  @param(defender The defender.)
-  @param(manner How the attack was made: 0 a normal attack, 1 from behind, 2 a backstab, 3 slaying a helpless creature.)
-  @param(damage The damage inflicted.)
-  @param(shownDamage The damage printed.)
-  @param(isHit Set for a hit.) }
-procedure ProcessAttackResult(attacker, defender: Types.PCharacter; manner, damage, shownDamage, isHit: Byte);
 
 { Moves a creature one step on the arena: spends the terrain's cost (times 2, times 3 diagonally; all its movement when
   that is more), moves its icon, scrolling the view for a quick-fighter, plays the step sound and lets guarding
@@ -58,11 +40,6 @@ function AttemptFlee(creature: Types.PCharacter): Byte;
   replaces the current attacks when it is lower.
   @param(creature The creature whose attacks are recalculated.) }
 procedure RecalcAttacksLeft(creature: Types.PCharacter);
-
-{ Converts half-attacks to attacks: adds 1 on odd rounds, then halves.
-  @param(rate The rate in half-attacks.)
-  @returns(The whole attacks for this round.) }
-function AttacksFromRate(rate: Byte): Byte;
 
 { Sweeps level-0 enemies. When the defender is an adjacent level-0 enemy, the attacker's sweep budget exceeds its
   current attacks, and more adjacent level-0 enemies stand around it than it has current attacks, the attacker makes one
@@ -93,8 +70,7 @@ procedure CombatTurnUndead(creature: Types.PCharacter);
   @param(target Receives the undead found, or nil.)
   @param(levelCap The highest undead level allowed; receives the level found, or 0.)
   @returns(True if a target was found.) }
-function FindTurnUndeadTarget(creature: Types.PCharacter; var target: Types.PCharacter;
-                              var levelCap: ShortInt): Boolean;
+function FindTurnUndeadTarget(creature: Pointer; var target: Pointer; var levelCap: ShortInt): Boolean;
 
 { Records an attack on a defender for flanking: the defender's count of attackers goes up, and the angle between its
   facing and the attack's direction (0..4) is added to its spread, mod 8.
@@ -115,17 +91,6 @@ procedure NoteAttackDirection(attacker, defender: Types.PCharacter);
   @param(weapon The missile or thrown item, or nil for melee.)
   @param(done Set when the attacker's actions for the round are over.) }
 procedure MakeAttack(attacker, defender: Types.PCharacter; fromBehind: Byte; weapon: Types.PItem; var done: Byte);
-
-{ Raises a defense value for range. With a ranged weapon the band is (range - 1) div 3 steps; a defender more than one
-  band away adds 2 and more than two bands away 3 more. A weapon of range 3 or less has a band of 0, so any distance
-  adds both. Melee adds nothing.
-  @param(attacker The creature attacking.)
-  @param(defender The creature attacked.)
-  @param(armorClass The defense value, raised in place.) }
-procedure ApplyRangePenalty(attacker, defender: Types.PCharacter; var armorClass: Byte);
-
-{ Empty routine with no callers. }
-procedure NoopCbtActs;
 
 { Builds the target list of a spell for the current caster, by the spell's area mode (the low nibble of its area byte):
   mode 0 is the caster alone; mode 5 a group picked one at a time until, from the second pick on, the creatures' weight
@@ -167,22 +132,7 @@ function CheckAttackAlly(attacker, defender: Types.PCharacter): Boolean;
   @param(creatureOk Non-zero when a creature may be taken.)
   @param(done Set when a target was taken, and for an attack when the attack ends the turn.)
   @param(aim Receives the creature and cell taken.) }
-procedure CombatAimMenu(character: Types.PCharacter; range, aimMode, emptyCellOk, creatureOk: Byte; var done: Byte;
-                        var aim: Types.TAimResult);
-
-{ Tells whether an attack is a backstab: a thief with no weapon or a small blade (item types 3, 4, 17..19, 67), next to
-  a defender of icon size 1 that has been attacked more than once, striking from behind it.
-  @param(attacker Creature attacking.)
-  @param(defender Creature attacked.)
-  @returns(True for a backstab.) }
-function IsBackstab(attacker, defender: Types.PCharacter): Boolean;
-
-{ Flies a missile's icon from the attacker to the defender with its sound, the icon and pace by the weapon's item type:
-  arrows and bolts drawn by direction, spinning icons for the thrown weapons.
-  @param(attacker Creature shooting.)
-  @param(defender Creature shot at.)
-  @param(weapon The missile or thrown weapon.) }
-procedure AnimateMissile(attacker, defender: Types.PCharacter; weapon: Types.PItem);
+procedure CombatAimMenu(character: Pointer; range, aimMode, emptyCellOk, creatureOk: Byte; var done: Byte; var aim);
 
 { Sets the hostiles' hit-point percentage: the enabled hostiles' current hit points as a percentage of the hostiles'
   combined maximum hit points, disabled ones included, rounded down to a multiple of five; it is left unchanged when
@@ -218,55 +168,21 @@ function VictoryCheat: Boolean;
   @returns(The score, above 0 when there is a worthwhile target.) }
 function RateSpell(character: Types.PCharacter; spellId: Byte): Byte;
 
-{ For the computer, scores each cell an area spell could be centered on by the targets its area would cover, and aims at
-  the best one the caster reaches along a clear line, a tie taken one time in four. A fireball's radius shrinks by one
-  outside the dungeon.
-  @param(spellId The spell.)
-  @param(aim Receives the cell.)
-  @returns(1 when a cell was found, 0 otherwise.) }
-function AimAreaSpell(spellId: Byte; var aim: Types.TAimResult): Byte;
-
 { As a fight starts, NPCs of the party and the monsters go on quick-fight; then each knight of the party, conscious and
   not an NPC, may lead each NPC on quick-fight with intelligence above 3 -- on d100 under 20, 40 or 80 by order, plus 5
   a charisma point above 13 -- taking it off computer control. The first success is announced. }
 procedure UseLeadership;
-
-{ Rates a creature as a target for a spell: -10 on the wrong team (or healed by fire, for a fire spell); 1 when the
-  spell would affect it, by the spell's own test or, for the rest, when it lacks the spell's effect; 0 otherwise. A
-  minor globe stops spells below level 4, a major globe below level 5, and spell resistance above 50 every spell.
-  @param(candidate The creature.)
-  @param(spellId The spell.)
-  @param(team Team the spell is meant for.)
-  @returns(1, 0 or -10.) }
-function RateSpellTarget(candidate: Types.PCharacter; spellId, team: Byte): ShortInt;
-
-{ Lets guarding enemies strike a creature that moved next to them: each adjacent enemy that is guarding and not helpless
-  spends its guard on one free attack, while the mover stays up.
-  @param(creature The creature that moved.) }
-procedure GuardersAttack(creature: Types.PCharacter);
-
-{ Rolls every attack the attacker has left, second form first, against the defender's armor class -- the rear armor
-  class less 4 for a backstab, the rear one from behind or when attacked from several sides -- with the range penalty;
-  each hit deals CalcWeaponDamage's damage. A weapon uses its large-creature damage against a large defender, and a
-  helpless defender is slain outright.
-  @param(attacker Creature attacking.)
-  @param(defender Creature attacked.)
-  @param(fromBehind Non-zero for an attack from behind.)
-  @param(done Set when the attacker has no attacks left and its turn is over.)
-  @param(thrown Unused.) }
-procedure RollAttacks(attacker, defender: Types.PCharacter; fromBehind: Byte; var done: Byte; thrown: Types.PItem);
-
-{ Chooses one target for a spell and moves the cast position to it. The player aims with the aim menu. The computer
-  picks a creature, or for an area spell that may be aimed at the ground the best spot. On failure the target is
-  cleared.
-  @param(spellId The spell.)
-  @param(aiControlled Nonzero when the computer is choosing.)
-  @param(groundOk Nonzero allows an area spell to be aimed at the ground.)
-  @param(target Receives the target.)
-  @returns(True when a target was chosen.) }
-function SelectSpellTarget(spellId, aiControlled, groundOk: Byte; var target: Types.TAimResult): Boolean;
 implementation
 type
+  { where an aim landed: the creature, if any, and the cell }
+  TAimResult = record
+    target: Pointer;
+    x: Byte;
+    y: Byte;
+    yTail: Byte
+  end;
+  PByte = ^Byte;
+  PLocalString = ^String;
   TMoveFrame = record
     baseYLead: Word;
     baseY: ShortInt;
@@ -279,7 +195,8 @@ type
   TFreeAttackFrame = packed record
     { Unused in this version; see the other implementations of this routine. }
     leavingFoe: Byte;
-    savedTarget: Pointer; attacker: Types.PCharacter;
+    savedTarget: Pointer;
+    attacker: Pointer;
     facingScan: Byte;
     phase: Byte;
     phasePos: Byte;
@@ -292,7 +209,7 @@ type
     slot: Byte;
     attacked: Byte;
     stillAdjacent: Byte;
-    effect: Types.PEffect;
+    effect: Pointer;
     candidates: array[1..12] of Byte
   end;
   PArmorByFacing = ^TArmorByFacing;
@@ -302,7 +219,6 @@ type
     { armorClass, rearArmorClass }
     armorClass: array[0..1] of Byte
   end;
-  { AimAreaSpell's score per cell around its base }
   TAimScoreGrid = array[-9..9, -9..9] of ShortInt;
   PAimScoreGrid = ^TAimScoreGrid;
   TAimBounds = packed record
@@ -315,10 +231,9 @@ type
     outerMaxX: ShortInt;
     outerMaxY: ShortInt
   end;
-  TTargetEntryList = array[1..72] of Types.TTargetEntry;
   TPickTargetFrame = packed record
-    effect: Types.PEffect;
-    target: Types.PCharacter;
+    effect: Pointer;
+    target: Pointer;
     retry: Byte;
     accepted: Byte;
     lastRetry: Byte;
@@ -326,6 +241,30 @@ type
     attempts: Byte;
     count: Byte
   end;
+
+procedure ManualAimCursor(character, target: Pointer; range, aimMode, emptyCellOk, creatureOk: Byte; var targetOk,
+                          accepted: Byte; var aim; coordX, coordY: Byte); forward;
+
+function AimAreaSpell(spellId: Byte; var aim): Byte; forward;
+
+function RateSpellTarget(candidate: Types.PCharacter; spellId, team: Byte): ShortInt; forward;
+
+function SelectSpellTarget(spellId, aiControlled, groundOk: Byte; var target): Boolean; forward;
+
+function AimTargetMenu(character, target: Types.PCharacter; range, aimMode, emptyCellOk, creatureOk, targetOk, x,
+                       y: Byte): Boolean; forward;
+
+procedure ConfirmAttackTarget(character, target: Pointer; aiMode: Byte; var done: Byte; var aim); forward;
+
+procedure AnimateMissile(attacker, defender, weapon: Pointer); forward;
+
+procedure RollAttacks(attacker, defender: Pointer; fromBehind: Byte; done, thrown: Pointer); forward;
+
+function AttacksFromRate(rate: Byte): Byte; forward;
+
+function IsBackstab(attacker, defender: Types.PCharacter): Boolean; forward;
+
+procedure ApplyRangePenalty(attacker, defender: Types.PCharacter; var armorClass: Byte); forward;
 
 procedure BeginRound(creature: Types.PCharacter);
 var
@@ -335,7 +274,7 @@ var
   inStinkingCloud: Byte;
   inCloudkill: Byte;
 begin
-  with creature^.combat^ do begin
+  with Types.PCharacter(creature)^.combat^ do begin
     spellCast := 0;
     CbtMap.ProbeDirection(creature, C_Dir.CENTER, cellIndex, cellIndex, inStinkingCloud, inCloudkill);
     canCast := Byte(inStinkingCloud = 0);
@@ -343,53 +282,69 @@ begin
     attacked := 0;
     attackForm := 2;
     CbtActs.RecalcAttacksLeft(creature);
-    GDVars.adjustedAttackRate := creature^.attackRate2;
+    GDVars.adjustedAttackRate := Types.PCharacter(creature)^.attackRate2;
     GDVars.attackInitByte := 0;
     FxEngine.TriggerEffectsWithCondition(C_Cond.MOVE_ATTACK_RATE, creature);
-    creature^.attacksLeft[2] := CbtActs.AttacksFromRate(GDVars.adjustedAttackRate);
-    if creature^.enabled <> 0 then begin
+    Types.PCharacter(creature)^.attacksLeft[2] := CbtActs.AttacksFromRate(GDVars.adjustedAttackRate);
+    if Types.PCharacter(creature)^.enabled <> 0 then begin
       initiative := FxEngine.RollDice(1, 6) + CharHlp.DexMissileAdjust(creature);
       if initiative < 1 then initiative := 1;
-      if Byte(GDVars.zone1^.surprise[GDConsts.surpriseIndex + $7C00] and (creature^.side + 1)) <> 0 then
+      if Byte(GDVars.zone1^.surprise[GDConsts.surpriseIndex + $7C00] and
+              (Types.PCharacter(creature)^.side + 1)) <> 0 then
         Dec(initiative, 6);
       if (initiative < 0) or (initiative > 20) then initiative := 0
     end else
       initiative := 0
   end;
-  creature^.combat^.movement := CharHlp.RecalcMovement(creature)
+  Types.PCharacter(creature)^.combat^.movement := CharHlp.RecalcMovement(creature)
 end;
 
+{ Rolls the damage of one hit in an attack form into currentDamage: dice plus modifier (not below 0), after the
+  attacker's and the defender's weapon-damage conditions; a backstab multiplies it by 2 + (thief level - 1) div 4.
+  @param(attacker Creature attacking.)
+  @param(defender Creature hit.)
+  @param(phase Attack form, 1 or 2.) }
 procedure CalcWeaponDamage(attacker, defender: Types.PCharacter; phase: Byte);
 begin
-  GDVars.currentDamage := attacker^.currentModifiers[phase] + FxEngine.RollDamageDice(attacker^.currentRolls[phase],
-                                                                                        attacker^.currentDice[phase]);
+  GDVars.currentDamage := Types.PCharacter(attacker)^.currentModifiers[phase] +
+    FxEngine.RollDamageDice(Types.PCharacter(attacker)^.currentRolls[phase],
+                            Types.PCharacter(attacker)^.currentDice[phase]);
   if GDVars.currentDamage < 0 then GDVars.currentDamage := 0;
   FxEngine.TriggerEffectsWithCondition(C_Cond.WEAPON_DAMAGE_ATTACKER, attacker);
   FxEngine.TriggerEffectsWithCondition(C_Cond.WEAPON_DAMAGE_DEFENDER, defender);
   if CbtActs.IsBackstab(attacker, defender) then
     GDVars.currentDamage := GDVars.currentDamage *
-      (((Byte(attacker^.classLevels[C_Class.THIEF]) - 1) div 4) + 2);
+      (((Byte(Types.PCharacter(attacker)^.classLevels[C_Class.THIEF]) - 1) div 2 div 2) + 2);
   GDVars.elementMask := 0
 end;
 
+{ Reports one attack and applies its result. Damage interrupts a spell being cast. A creature that goes down is
+  announced as dying or killed (unless bit 3 of its immunities is set), its hit-point effects run, and it is removed
+  from the map. The hit or miss line is not printed for a defender that is already gone.
+  @param(attacker The attacker.)
+  @param(defender The defender.)
+  @param(manner How the attack was made: 0 a normal attack, 1 from behind, 2 a backstab, 3 slaying a helpless creature.)
+  @param(damage The damage inflicted.)
+  @param(shownDamage The damage printed.)
+  @param(isHit Set for a hit.) }
 procedure ProcessAttackResult(attacker, defender: Types.PCharacter; manner, damage, shownDamage, isHit: Byte);
 var row: Byte;
     message: String[80];
-    { Unused in this version; see the other implementations of this routine. }
-    isDone: Byte;
+  { Unused in this version; see the other implementations of this routine. }
+  isDone: Byte;
 begin
   case manner of
-    2: message := '-Backstabs-';
-    3: message := 'slays helpless'
+    2: message := GDConsts.backstabsText;
+    3: message := GDConsts.slaysHelplessText
   else
-    message := 'Attacks'
+    message := GDConsts.attacksText
   end;
   CharHlp.PrintCreatureMessage(attacker, message, 10, False);
   row := 12;
   CharHlp.DisplayCreatureName(defender, 23, row, False);
   Inc(row);
   if manner = 1 then
-    message := '(from behind) '
+    message := GDConsts.fromBehindText
   else
     message := '';
   if isHit <> 0 then begin
@@ -398,42 +353,43 @@ begin
     else begin
       message := message + 'Hitting for ' + CharHlp.ByteToString(shownDamage);
       if shownDamage = 1 then
-        message := message + ' point '
+        message := message + GDConsts.damagePointText
       else
-        message := message + ' points ';
-      message := message + 'of damage'
+        message := message + GDConsts.damagePointsText;
+      message := message + GDConsts.damageSuffix
     end;
     CharHlp.InflictDamage(defender, damage)
   end else
-    message := message + 'and Misses';
-  if defender^.status <> C_Status.GONE then begin
+    message := message + GDConsts.missesText;
+  if Types.PCharacter(defender)^.status <> C_Status.GONE then begin
     TextRend.DisplayMessageWindow(23, row, 38, row + 3, LightGreen, Black, True, message)
   end;
   row := GDVars.currentRow + 1;
   if damage > 0 then begin
-    defender^.combat^.canCast := 0;
-    if defender^.combat^.spellCast > 0 then begin
+    Types.PCharacter(defender)^.combat^.canCast := 0;
+    if Types.PCharacter(defender)^.combat^.spellCast > 0 then begin
       TextRend.PauseOnly;
-      CharHlp.PrintCreatureMessage(defender, 'lost a spell', 12, True);
-      CharHlp.RemoveSpell(defender, defender^.combat^.spellCast);
+      CharHlp.PrintCreatureMessage(defender, GDConsts.lostSpellMessage, 12, True);
+      CharHlp.RemoveSpell(defender, Types.PCharacter(defender)^.combat^.spellCast);
       isDone := Byte(CharHlp.EndActions(defender))
     end else
       TextRend.PauseOnly
   end else
     TextRend.PauseOnly;
-  if defender^.enabled = 0 then begin
-    CharHlp.PrintCreatureMessage(defender, 'goes down', row, False);
-    if (defender^.immunityFlags and $08) = 0 then begin
+  if Types.PCharacter(defender)^.enabled = 0 then begin
+    CharHlp.PrintCreatureMessage(defender, GDConsts.goesDown, row, False);
+    if (Types.PCharacter(defender)^.immunityFlags and $08) = 0 then begin
       Inc(row, 2);
-      if defender^.status = C_Status.DYING then
-        TextRend.DisplayString(23, row, LightGreen, Black, 'and is Dying');
-      if defender^.status in [C_Status.DEAD_STATUS, C_Status.STONED, C_Status.GONE] then
-        CharHlp.PrintCreatureMessage(defender, 'is killed', row, False);
+      if Types.PCharacter(defender)^.status = C_Status.DYING then
+        TextRend.DisplayString(23, row, LightGreen, Black, GDConsts.dyingSuffix);
+      if Types.PCharacter(defender)^.status in
+          [C_Status.DEAD_STATUS, C_Status.STONED, C_Status.GONE] then
+        CharHlp.PrintCreatureMessage(defender, GDConsts.killedMessage, row, False);
       Inc(row, 2)
     end;
     FxEngine.RemoveEffectsHp0(defender);
     FxEngine.TriggerEffectsWithCondition(C_Cond.HIT_POINTS_ZERO, defender);
-    if (defender^.enabled = 0) and (defender^.status <> 10) then
+    if (Types.PCharacter(defender)^.enabled = 0) and (Types.PCharacter(defender)^.status <> 10) then
       CbtMap.CreatureDowned(defender)
     else
       TextRend.PauseOnly
@@ -441,21 +397,24 @@ begin
   CharHlp.ClearMessageWindow
 end;
 
+{ Lets guarding enemies strike a creature that moved next to them: each adjacent enemy that is guarding and not helpless
+  spends its guard on one free attack, while the mover stays up.
+  @param(creature The creature that moved.) }
 procedure GuardersAttack(creature: Types.PCharacter);
 var
   count: Byte;
   index: Byte;
-  guarder: Types.PCharacter;
+  guarder: Pointer;
   done: Byte;
 begin
   count := CharHlp.CountTargets(creature, 1, False);
   for index := 1 to count do begin
-    if creature^.enabled <> 0 then begin
+    if Types.PCharacter(creature)^.enabled <> 0 then begin
       guarder := GDVars.creatures[GDVars.targetIndices[index]];
-      if guarder^.combat^.guarding <> 0 then
+      if Types.PCharacter(guarder)^.combat^.guarding <> 0 then
         if not CharHlp.IsHelpless(guarder) then begin
           CbtMap.ScrollView(CbtMap.CombatCellX(creature), CbtMap.CombatCellY(creature), 2, C_Dir.CENTER);
-          guarder^.combat^.guarding := 0;
+          Types.PCharacter(guarder)^.combat^.guarding := 0;
           CbtActs.NoteAttackDirection(guarder, creature);
           CbtActs.MakeAttack(guarder, creature, 0, nil, done)
         end
@@ -469,20 +428,21 @@ begin
   local.slot := CbtMap.CombatSlot(creature);
   local.baseX := GDVars.arenaLoc[local.slot].x;
   local.baseY := GDVars.arenaLoc[local.slot].y;
-  local.x := local.baseX + GDConsts.combatTables.directionX[direction];
-  local.y := local.baseY + GDConsts.combatTables.directionY[direction];
+  local.x := local.baseX + GDConsts.directionX[direction];
+  local.y := local.baseY + GDConsts.directionY[direction];
   if Odd(direction) then
-    local.cost := GDConsts.combatTables.terrain[GDVars.arena^.cells[local.y, local.x]].cost * 3
+    local.cost := GDConsts.terrain[GDVars.arena^.cells[local.y, local.x]].cost * 3
   else
-    local.cost := GDConsts.combatTables.terrain[GDVars.arena^.cells[local.y, local.x]].cost * 2;
-  if local.cost > creature^.combat^.movement then
-    creature^.combat^.movement := 0
+    local.cost := GDConsts.terrain[GDVars.arena^.cells[local.y, local.x]].cost * 2;
+  if local.cost > Types.PCharacter(creature)^.combat^.movement then
+    Types.PCharacter(creature)^.combat^.movement := 0
   else
-    Dec(creature^.combat^.movement, local.cost);
+    Dec(Types.PCharacter(creature)^.combat^.movement, local.cost);
   local.cost := 1;
-  if creature^.quickFight <> 0 then begin
+  if Types.PCharacter(creature)^.quickFight <> 0 then begin
     local.cost := 3;
-    if not CbtMap.ViewCoordsValid(local.x - GDVars.arena^.ox, local.y - GDVars.arena^.oy) then
+    if not CbtMap.ViewCoordsValid(local.x - GDVars.arena^.ox,
+                                  local.y - GDVars.arena^.oy) then
       if GDVars.showTurn <> 0 then
         CbtMap.ScrollView(local.baseX, local.baseY, 2, C_Dir.CENTER)
   end;
@@ -493,12 +453,12 @@ begin
   CbtMap.BuildArenaArrays;
   if GDVars.showTurn <> 0 then
     CbtMap.ScrollView(local.x, local.y, local.cost, C_Dir.CENTER);
-  creature^.combat^.attacksTaken := 0;
-  creature^.combat^.attackAngles := 0;
+  Types.PCharacter(creature)^.combat^.attacksTaken := 0;
+  Types.PCharacter(creature)^.combat^.attackAngles := 0;
   Music.SendSoundCommand(GDConsts.stepSound);
   CbtActs.GuardersAttack(creature);
-  if (creature^.enabled = 0) or CharHlp.IsHelpless(creature) then
-    creature^.combat^.movement := 0
+  if (Types.PCharacter(creature)^.enabled = 0) or CharHlp.IsHelpless(creature) then
+    Types.PCharacter(creature)^.combat^.movement := 0
 end;
 
 procedure AttacksOfOpportunity(creature: Types.PCharacter; direction: Byte);
@@ -512,7 +472,7 @@ begin
     local.index := 1;
     for local.scanPos := 1 to local.candidateCount do begin
       if not CharHlp.IsHelpless(GDVars.creatures[GDVars.targetIndices[local.scanPos]]) then
-        if GDVars.creatures[GDVars.targetIndices[local.scanPos]]^.combat^.panicked = 0 then
+        if Types.PCharacter(GDVars.creatures[GDVars.targetIndices[local.scanPos]])^.combat^.panicked = 0 then
           if not CharHlp.HasEffect(GDVars.creatures[GDVars.targetIndices[local.scanPos]], C_Effect.ENTANGLED,
                                    local.effect) then begin
             local.candidates[local.index] := GDVars.targetIndices[local.scanPos];
@@ -520,11 +480,11 @@ begin
           end
     end;
     local.candidateCount := local.index - 1;
-    Inc(GDVars.arenaLoc[local.slot].x, GDConsts.combatTables.directionX[direction]);
-    Inc(GDVars.arenaLoc[local.slot].y, GDConsts.combatTables.directionY[direction]);
+    Inc(GDVars.arenaLoc[local.slot].x, GDConsts.directionX[direction]);
+    Inc(GDVars.arenaLoc[local.slot].y, GDConsts.directionY[direction]);
     local.countAfter := CharHlp.CountTargets(creature, 1, False);
-    Dec(GDVars.arenaLoc[local.slot].x, GDConsts.combatTables.directionX[direction]);
-    Dec(GDVars.arenaLoc[local.slot].y, GDConsts.combatTables.directionY[direction]);
+    Dec(GDVars.arenaLoc[local.slot].x, GDConsts.directionX[direction]);
+    Dec(GDVars.arenaLoc[local.slot].y, GDConsts.directionY[direction]);
     for local.index := 1 to local.candidateCount do begin
       local.stillAdjacent := 0;
       for local.scanPos := 1 to local.countAfter do
@@ -533,39 +493,43 @@ begin
       if local.stillAdjacent <> 0 then
         local.candidates[local.index] := 0
     end;
-    if creature^.side = C_Side.PLAYER then
+    if Types.PCharacter(creature)^.side = C_Side.PLAYER then
       for local.index := 1 to local.candidateCount do
-        if (local.candidates[local.index] > 0) and (creature^.enabled <> 0) then
+        if (local.candidates[local.index] > 0) and (Types.PCharacter(creature)^.enabled <> 0) then
           local.leavingFoe := 1;
     for local.index := 1 to local.candidateCount do
-      if (local.candidates[local.index] > 0) and (creature^.enabled <> 0) then begin
+      if (local.candidates[local.index] > 0) and (Types.PCharacter(creature)^.enabled <> 0) then begin
         GDVars.combatInfoDirty := 1;
         GDVars.showTurn := 1;
         local.attacked := 0;
         local.attacker := GDVars.creatures[local.candidates[local.index]];
         if CbtActs.CanTarget(local.attacker, creature, 0) then
           if (not CharHlp.HasRangedWeapon(local.attacker)) or CharHlp.HasThrowableWeapon(local.attacker) then
-            for local.facingScan := local.attacker^.combat^.direction + 6 to
-                local.attacker^.combat^.direction + 10 do
+            for local.facingScan := Types.PCharacter(local.attacker)^.combat^.direction + 6 to
+                Types.PCharacter(local.attacker)^.combat^.direction + 10 do
               if local.attacked = 0 then
-                if (local.attacker^.combat^.initiative > 0) or (local.attacker^.combat^.attacksTaken = 0) or
+                if (Types.PCharacter(local.attacker)^.combat^.initiative > 0) or
+                    (Types.PCharacter(local.attacker)^.combat^.attacksTaken = 0) or
                     Pathing.IsDirToward(CbtMap.CombatCellX(local.attacker), CbtMap.CombatCellY(local.attacker),
                                         CbtMap.CombatCellX(creature), CbtMap.CombatCellY(creature),
                                         local.facingScan mod 8) then begin
                   local.phase := 1;
-                  if local.attacker^.attackRate = 0 then
+                  if Types.PCharacter(local.attacker)^.attackRate = 0 then
                     local.phase := 2;
                   for local.phasePos := 1 to 2 do
-                    if local.attacker^.attacksLeft[local.phasePos] > 0 then
+                    if Types.PCharacter(local.attacker)^.
+                         attacksLeft[local.phasePos] > 0 then
                       local.phase := local.phasePos;
-                  if local.attacker^.attacksLeft[local.phase] = 0 then
-                    local.attacker^.attacksLeft[local.phase] := 1;
-                  local.attacker^.combat^.attackForm := local.phase;
-                  local.savedTarget := local.attacker^.combat^.target;
+                  if Types.PCharacter(local.attacker)^.
+                       attacksLeft[local.phase] = 0 then
+                    Types.PCharacter(local.attacker)^.
+                      attacksLeft[local.phase] := 1;
+                  Types.PCharacter(local.attacker)^.combat^.attackForm := local.phase;
+                  local.savedTarget := Types.PCharacter(local.attacker)^.combat^.target;
                   CbtActs.MakeAttack(local.attacker, creature, 1, nil, GDVars.attackDone);
                   local.attacked := 1;
-                  local.attacker^.combat^.target := local.savedTarget;
-                  if creature^.enabled <> 0 then begin
+                  Types.PCharacter(local.attacker)^.combat^.target := local.savedTarget;
+                  if Types.PCharacter(creature)^.enabled <> 0 then begin
                     GDVars.combatInfoDirty := 1;
                     CharHlp.CombatPrintCreatureInfo(creature)
                   end
@@ -592,9 +556,9 @@ begin
       hasEscaped := 1
   end;
   if hasEscaped <> 0 then
-    FxEngine.PutOutOfPlayWithStatus(creature, C_Status.RUNNING, 'Got Away')
+    FxEngine.PutOutOfPlayWithStatus(creature, C_Status.RUNNING, GDConsts.gotAwayText)
   else
-    CharHlp.PrintBottomLine('Escape is blocked');
+    CharHlp.PrintBottomLine(GDConsts.escapeBlockedText);
   AttemptFlee := Byte(CharHlp.EndActions(creature))
 end;
 
@@ -608,15 +572,15 @@ var
   weapon: Types.PItem;
 begin
   ranged := 0;
-  previous := creature^.attacksLeft[1];
-  creature^.attacksLeft[1] := creature^.attackRate;
+  previous := Types.PCharacter(creature)^.attacksLeft[1];
+  Types.PCharacter(creature)^.attacksLeft[1] := Types.PCharacter(creature)^.attackRate;
   if CharHlp.HasRangedWeapon(creature) and CharHlp.FindDamagingRangedWeapon(creature, weapon) then begin
     ranged := 1;
-    rate := GDVars.baseItems[creature^.equipped[0]^.itemType].rateOfFire;
+    rate := GDVars.baseItems[Types.PCharacter(creature)^.equipped[0]^. itemType].rateOfFire;
     if rate < 2 then rate := 2;
     GDVars.adjustedAttackRate := rate
   end else
-    GDVars.adjustedAttackRate := creature^.attacksLeft[1];
+    GDVars.adjustedAttackRate := Types.PCharacter(creature)^.attacksLeft[1];
   GDVars.attackInitByte := 0;
   FxEngine.TriggerEffectsWithCondition(C_Cond.MOVE_ATTACK_RATE, creature);
   attacks := CbtActs.AttacksFromRate(GDVars.adjustedAttackRate);
@@ -627,12 +591,15 @@ begin
     if (ammoLimit < attacks) and (weapon^.quantity > 0) then
       attacks := ammoLimit
   end;
-  if (creature^.combat^.attacked = 0) or (attacks < previous) then
-    creature^.attacksLeft[1] := attacks
+  if (Types.PCharacter(creature)^.combat^.attacked = 0) or (attacks < previous) then
+    Types.PCharacter(creature)^.attacksLeft[1] := attacks
   else
-    creature^.attacksLeft[1] := previous
+    Types.PCharacter(creature)^.attacksLeft[1] := previous
 end;
 
+{ Converts half-attacks to attacks: adds 1 on odd rounds, then halves.
+  @param(rate The rate in half-attacks.)
+  @returns(The whole attacks for this round.) }
 function AttacksFromRate(rate: Byte): Byte;
 var adjusted: Byte;
 begin
@@ -646,35 +613,35 @@ var
   count: Byte;
   available: Byte;
   index: Byte;
-  foeIndex: Byte;
-  target: Types.PCharacter;
+  sourceIndex: Byte;
+  target: Pointer;
 begin
   SweepAttack := False;
-  if character^.attacksLeft[1] < character^.combat^.sweepTargets then
-    if foe^.levelHighest = 0 then
+  if Types.PCharacter(character)^.attacksLeft[1] < Types.PCharacter(character)^.combat^.sweepTargets then
+    if Types.PCharacter(foe)^.levelHighest = 0 then
       if CharHlp.CalcDistance(character, foe) = 1 then begin
         count := CharHlp.CountTargets(character, 1, False);
         available := 0;
         for index := 1 to count do begin
           target := GDVars.creatures[GDVars.targetIndices[index]];
-          if target = foe then foeIndex := index;
-          if target^.levelHighest = 0 then Inc(available)
+          if target = foe then sourceIndex := index;
+          if Types.PCharacter(target)^.levelHighest = 0 then Inc(available)
         end;
-        if available > character^.attacksLeft[1] then begin
-          if available > character^.combat^.sweepTargets then
-            available := character^.combat^.sweepTargets;
-          CharHlp.PrintCreatureMessage(character, 'sweeps', 10, True);
+        if available > Types.PCharacter(character)^.attacksLeft[1] then begin
+          if available > Types.PCharacter(character)^.combat^.sweepTargets then
+            available := Types.PCharacter(character)^.combat^.sweepTargets;
+          CharHlp.PrintCreatureMessage(character, GDConsts.sweepsText, 10, True);
           target := GDVars.creatures[GDVars.targetIndices[1]];
           if target <> foe then begin
-            GDVars.targetIndices[foeIndex] := GDVars.targetIndices[1];
+            GDVars.targetIndices[sourceIndex] := GDVars.targetIndices[1];
             GDVars.targetIndices[1] := CbtMap.CombatSlot(foe)
           end;
           for index := 1 to count do
             if available > 0 then begin
-              if GDVars.creatures[GDVars.targetIndices[index]]^.levelHighest = 0 then begin
+              if Types.PCharacter(GDVars.creatures[GDVars.targetIndices[index]])^.levelHighest = 0 then begin
                 target := GDVars.creatures[GDVars.targetIndices[index]];
                 CbtActs.NoteAttackDirection(character, target);
-                character^.attacksLeft[1] := 1;
+                Types.PCharacter(character)^.attacksLeft[1] := 1;
                 CbtActs.MakeAttack(character, target, 0, nil, GDVars.attackDone);
                 Dec(available)
               end
@@ -686,8 +653,8 @@ end;
 
 function CanTarget(attacker, target: Types.PCharacter; allowAlly: Byte): Boolean;
 var
-  savedCharacter: Types.PCharacter;
-  savedTarget: Types.PCharacter;
+  savedCharacter: Pointer;
+  savedTarget: Pointer;
 begin
   CanTarget := False;
   if target <> nil then
@@ -699,11 +666,12 @@ begin
       GDVars.currentCharacter := attacker;
       FxEngine.TriggerEffectsWithCondition(C_Cond.TARGET_VETO, target);
       GDVars.currentCharacter := savedCharacter;
-      if (GDVars.targetRefused = 0) and ((target^.side <> attacker^.side) or (allowAlly <> 0)) then begin
-        savedTarget := attacker^.combat^.target;
-        attacker^.combat^.target := target;
+      if (GDVars.targetRefused = 0) and
+          ((Types.PCharacter(target)^.side <> Types.PCharacter(attacker)^.side) or (allowAlly <> 0)) then begin
+        savedTarget := Types.PCharacter(attacker)^.combat^.target;
+        Types.PCharacter(attacker)^.combat^.target := target;
         FxEngine.TriggerEffectsWithCondition(C_Cond.ATTACKER_VETO, attacker);
-        attacker^.combat^.target := savedTarget
+        Types.PCharacter(attacker)^.combat^.target := savedTarget
       end else
         GDVars.targetRefused := 1;
       CanTarget := GDVars.targetRefused = 0
@@ -719,23 +687,23 @@ var
   turnedAny: Byte;
   { Unused in this version; see the other implementations of this routine. }
   stop: Byte;
-  target: Types.PCharacter;
+  target: Pointer;
   tableColumn: ShortInt;
   levelCap: ShortInt;
 begin
-  CharHlp.PrintCreatureMessage(creature, 'turns undead...', 10, False);
+  CharHlp.PrintCreatureMessage(creature, GDConsts.turnsUndeadText, 10, False);
   MenuCore.ClearBottomLine;
   TextRend.PauseOnly;
   turnedAny := 0;
   stop := 0;
-  Inc(creature^.combat^.turnAttempts);
+  Inc(Types.PCharacter(creature)^.combat^.turnAttempts);
   levelCap := 13;
   minimumLeft := 6;
   roll := FxEngine.RollDice(1, 20);
-  tableColumn := creature^.classLevels[C_Class.CLERIC];
-  if creature^.classLevels[C_Class.PALADIN] - 2 > tableColumn then
-    tableColumn := creature^.classLevels[C_Class.PALADIN] - 2;
-  if creature^.deity = 2 then Inc(tableColumn, 2);
+  tableColumn := Types.PCharacter(creature)^.classLevels[C_Class.CLERIC];
+  if Types.PCharacter(creature)^.classLevels[C_Class.PALADIN] - 2 > tableColumn then
+    tableColumn := Types.PCharacter(creature)^.classLevels[C_Class.PALADIN] - 2;
+  if Types.PCharacter(creature)^.deity = 2 then Inc(tableColumn, 2);
   if tableColumn > 8 then
     if tableColumn < 14 then tableColumn := 9 else tableColumn := 10;
   if GDVars.zone0^.columnOffset > tableColumn then
@@ -744,7 +712,7 @@ begin
     Dec(tableColumn, GDVars.zone0^.columnOffset);
   affectedLeft := 255;
   while CbtActs.FindTurnUndeadTarget(creature, target, levelCap) and (affectedLeft > 0) do begin
-    needed := GDConsts.turnUndeadTable[ShortInt(target^.levelUndead), tableColumn];
+    needed := GDConsts.turnUndeadTable[ShortInt(Types.PCharacter(target)^.levelUndead), tableColumn];
     if affectedLeft = 255 then
       if needed < 0 then
         affectedLeft := FxEngine.RollDice(1, 6) + 6
@@ -756,12 +724,12 @@ begin
       GDVars.combatInfoDirty := 1;
       CharHlp.CombatPrintCreatureInfo(target);
       if needed > 0 then
-        FxEngine.PutOutOfPlayWithStatus(target, C_Status.RUNNING, 'is turned')
+        FxEngine.PutOutOfPlayWithStatus(target, C_Status.RUNNING, GDConsts.turnedText)
       else begin
-        CharHlp.PrintCreatureMessage(target, 'Is destroyed', 10, False);
+        CharHlp.PrintCreatureMessage(target, GDConsts.destroyedText, 10, False);
         CbtMap.CreatureDowned(target);
-        target^.status := C_Status.GONE;
-        target^.enabled := 0
+        Types.PCharacter(target)^.status := C_Status.GONE;
+        Types.PCharacter(target)^.enabled := 0
       end;
       if minimumLeft > 0 then Dec(minimumLeft);
       Dec(affectedLeft);
@@ -770,19 +738,18 @@ begin
     end else
       Dec(levelCap)
   end;
-  if turnedAny = 0 then CharHlp.PrintBottomLine('Nothing Happens...');
+  if turnedAny = 0 then CharHlp.PrintBottomLine(GDConsts.nothingHappensText);
   CharHlp.CountTeams;
   GDVars.attackDone := Byte(CharHlp.EndActions(creature));
   CharHlp.ClearMessageWindow
 end;
 
-function FindTurnUndeadTarget(creature: Types.PCharacter; var target: Types.PCharacter;
-                              var levelCap: ShortInt): Boolean;
+function FindTurnUndeadTarget(creature: Pointer; var target: Pointer; var levelCap: ShortInt): Boolean;
 var
   count: Byte;
   index: Byte;
   bestLevel: ShortInt;
-  candidate: Types.PCharacter;
+  candidate: Pointer;
 begin
   bestLevel := 0;
   target := nil;
@@ -790,11 +757,11 @@ begin
   FindTurnUndeadTarget := False;
   for index := 1 to count do begin
     candidate := GDVars.creatures[GDVars.targetIndices[index]];
-    if candidate^.combat^.panicked = 0 then
-      if ShortInt(candidate^.levelUndead) > 0 then
-        if ShortInt(candidate^.levelUndead) > bestLevel then
-          if ShortInt(candidate^.levelUndead) <= levelCap then begin
-            bestLevel := ShortInt(candidate^.levelUndead);
+    if Types.PCharacter(candidate)^.combat^.panicked = 0 then
+      if ShortInt(Types.PCharacter(candidate)^.levelUndead) > 0 then
+        if ShortInt(Types.PCharacter(candidate)^.levelUndead) > bestLevel then
+          if ShortInt(Types.PCharacter(candidate)^.levelUndead) <= levelCap then begin
+            bestLevel := Types.PCharacter(candidate)^.levelUndead;
             target := candidate;
             FindTurnUndeadTarget := True
           end
@@ -802,169 +769,183 @@ begin
   levelCap := bestLevel
 end;
 
-procedure RollAttacks(attacker, defender: Types.PCharacter; fromBehind: Byte; var done: Byte; thrown: Types.PItem);
+{ Rolls every attack the attacker has left, second form first, against the defender's armor class -- the rear armor
+  class less 4 for a backstab, the rear one from behind or when attacked from several sides -- with the range penalty;
+  each hit deals CalcWeaponDamage's damage. A weapon uses its large-creature damage against a large defender, and a
+  helpless defender is slain outright.
+  @param(attacker Creature attacking.)
+  @param(defender Creature attacked.)
+  @param(fromBehind Non-zero for an attack from behind.)
+  @param(done Set when the attacker has no attacks left and its turn is over.)
+  @param(thrown Unused.) }
+procedure RollAttacks(attacker, defender: Pointer; fromBehind: Byte; done, thrown: Pointer);
 var weapon: Types.TBaseItem;
-    hitAny: Byte;
+    acted: Byte;
     stopped: Byte;
-    behind: Byte;
-    targetAc: Byte;
-    form: Byte;
-    forms: Byte;
-    kind: Byte;
-    armorSide: ShortInt;
+    modeCopy: Byte;
+    selected: Byte;
+    index: Byte;
+    count: Byte;
+    phase: Byte;
+    choice: ShortInt;
 begin
-  behind := fromBehind;
-  done := 0;
+  modeCopy := fromBehind;
+  PByte(done)^ := 0;
   GDVars.hitsMade[1] := 0;
   GDVars.hitsMade[2] := 0;
   GDVars.attacksMade[1] := 0;
   GDVars.attacksMade[2] := 0;
-  hitAny := 0;
+  acted := 0;
   stopped := 0;
   GDVars.currentDamage := 0;
-  attacker^.combat^.attacked := 1;
+  Types.PCharacter(attacker)^.combat^.attacked := 1;
   if CharHlp.IsHelpless(defender) then begin
     Music.SendSoundCommand(GDConsts.hitSound);
-    while attacker^.attacksLeft[attacker^.combat^.attackForm] = 0 do
-      Dec(attacker^.combat^.attackForm);
-    Inc(GDVars.attacksMade[attacker^.combat^.attackForm]);
-    CbtActs.ProcessAttackResult(attacker, defender, 3, defender^.hitPoints + 5, 1, 1);
+    while Types.PCharacter(attacker)^.attacksLeft[Types.PCharacter(attacker)^.combat^.attackForm] = 0 do
+      Dec(Types.PCharacter(attacker)^.combat^.attackForm);
+    Inc(GDVars.attacksMade[Types.PCharacter(attacker)^.combat^.attackForm]);
+    CbtActs.ProcessAttackResult(attacker, defender, 3, Types.PCharacter(defender)^.hitPoints + 5, 1, 1);
     FxEngine.RemoveInvisibility(attacker);
-    for form := 1 to 2 do attacker^.attacksLeft[form] := 0;
-    hitAny := 1;
-    done := 1
+    for index := 1 to 2 do Types.PCharacter(attacker)^.attacksLeft[index] := 0;
+    acted := 1;
+    PByte(done)^ := 1
   end else begin
-    if (attacker^.equipped[0] <> nil) and
-        ((defender^.iconDimensions > $80) or ((defender^.iconDimensions and $07) > 1)) then begin
-      weapon := GDVars.baseItems[attacker^.equipped[0]^.itemType];
-      attacker^.currentRolls[1] := weapon.damageRollsLarge;
-      attacker^.currentDice[1] := weapon.damageDiceLarge;
-      attacker^.currentModifiers[1] :=
-        (attacker^.currentModifiers[1] - ShortInt(weapon.damageModifier)) + ShortInt(weapon.damageModifierLarge)
+    if (Types.PCharacter(attacker)^.equipped[0] <> nil) and
+        ((Types.PCharacter(defender)^.iconDimensions > $80) or ((Types.PCharacter(defender)^.iconDimensions and
+                                                                    $07) > 1)) then begin
+      weapon := GDVars.baseItems[Types.PCharacter(attacker)^.equipped[0]^.itemType];
+      Types.PCharacter(attacker)^.currentRolls[1] := weapon.damageRollsLarge;
+      Types.PCharacter(attacker)^.currentDice[1] := weapon.damageDiceLarge;
+      Types.PCharacter(attacker)^.currentModifiers[1] := (Types.PCharacter(attacker)^.currentModifiers[1] -
+                                                          ShortInt(weapon.damageModifier)) +
+        ShortInt(weapon.damageModifierLarge)
     end;
     CharHlp.RecalcStats(defender);
     FxEngine.TriggerEffectsWithCondition(C_Cond.DEFENDER_ARMOR_CLASS, defender);
-    armorSide := 0;
+    choice := 0;
     if CbtActs.IsBackstab(attacker, defender) then
-      targetAc := defender^.rearArmorClass - 4
+      selected := Types.PCharacter(defender)^.rearArmorClass - 4
     else begin
-      if (defender^.combat^.attacksTaken > 1) and
-          (CharHlp.DirTowardTarget(attacker, defender) = defender^.combat^.direction) and
-          (defender^.combat^.attackAngles > 4)
+      if (Types.PCharacter(defender)^.combat^.attacksTaken > 1) and
+          (CharHlp.DirTowardTarget(attacker, defender) = Types.PCharacter(defender)^.combat^.direction) and
+          (Types.PCharacter(defender)^.combat^.attackAngles > 4)
       then
-        behind := 1;
-      if behind <> 0 then armorSide := 1;
-      targetAc := PArmorByFacing(defender)^.armorClass[armorSide]
+        modeCopy := 1;
+      if modeCopy <> 0 then choice := 1;
+      selected := PArmorByFacing(defender)^.armorClass[choice]
     end;
-    CbtActs.ApplyRangePenalty(attacker, defender, targetAc);
-    kind := 0;
-    if behind <> 0 then kind := 1;
-    if CbtActs.IsBackstab(attacker, defender) then kind := 2;
-    forms := attacker^.combat^.attackForm;
-    for form := forms downto 1 do
-      while (attacker^.attacksLeft[form] > 0) and (stopped = 0) do begin
-        Dec(attacker^.attacksLeft[form]);
-        attacker^.combat^.attackForm := form;
-        Inc(GDVars.attacksMade[form]);
-        if FxEngine.AttackRoll(attacker, defender, targetAc) or CharHlp.IsHelpless(defender) then begin
-          Inc(GDVars.hitsMade[form]);
+    CbtActs.ApplyRangePenalty(attacker, defender, selected);
+    phase := 0;
+    if modeCopy <> 0 then phase := 1;
+    if CbtActs.IsBackstab(attacker, defender) then phase := 2;
+    count := Types.PCharacter(attacker)^.combat^.attackForm;
+    for index := count downto 1 do
+      while (Types.PCharacter(attacker)^.attacksLeft[index] > 0) and (stopped = 0) do begin
+        Dec(Types.PCharacter(attacker)^.attacksLeft[index]);
+        Types.PCharacter(attacker)^.combat^.attackForm := index;
+        Inc(GDVars.attacksMade[index]);
+        if FxEngine.AttackRoll(attacker, defender, selected) or CharHlp.IsHelpless(defender) then begin
+          Inc(GDVars.hitsMade[index]);
           Music.SendSoundCommand(GDConsts.hitSound);
-          hitAny := 1;
-          CbtActs.CalcWeaponDamage(attacker, defender, form);
-          if defender^.enabled <> 0 then
-            CbtActs.ProcessAttackResult(attacker, defender, kind, GDVars.currentDamage, GDVars.currentDamage, 1);
-          if (defender^.enabled <> 0) and (GDVars.currentDamage > 0) then
-            FxEngine.TriggerEffectsWithCondition(form + 1, attacker);
-          if defender^.enabled = 0 then stopped := 1;
-          if attacker^.enabled = 0 then begin
-            forms := 0;
-            attacker^.attacksLeft[form] := 0
+          acted := 1;
+          CbtActs.CalcWeaponDamage(attacker, defender, index);
+          if Types.PCharacter(defender)^.enabled <> 0 then
+            CbtActs.ProcessAttackResult(attacker, defender, phase, GDVars.currentDamage, GDVars.currentDamage, 1);
+          if (Types.PCharacter(defender)^.enabled <> 0) and (GDVars.currentDamage > 0) then
+            FxEngine.TriggerEffectsWithCondition(index + 1, attacker);
+          if Types.PCharacter(defender)^.enabled = 0 then stopped := 1;
+          if Types.PCharacter(attacker)^.enabled = 0 then begin
+            count := 0;
+            Types.PCharacter(attacker)^.attacksLeft[index] := 0
           end
         end
       end;
-    if hitAny = 0 then begin
+    if acted = 0 then begin
       Music.SendSoundCommand(GDConsts.damageSound);
-      CbtActs.ProcessAttackResult(attacker, defender, kind, 0, 0, 0)
+      CbtActs.ProcessAttackResult(attacker, defender, phase, 0, 0, 0)
     end;
-    done := 1;
-    for form := 1 to 2 do
-      if attacker^.attacksLeft[form] > 0 then done := 0;
-    attacker^.combat^.sweepTargets := 0
+    PByte(done)^ := 1;
+    for index := 1 to 2 do
+      if Types.PCharacter(attacker)^.attacksLeft[index] > 0 then PByte(done)^ := 0;
+    Types.PCharacter(attacker)^.combat^.sweepTargets := 0
   end;
-  if attacker^.enabled = 0 then done := 1;
-  if done <> 0 then done := Byte(CharHlp.EndActions(attacker))
+  if Types.PCharacter(attacker)^.enabled = 0 then PByte(done)^ := 1;
+  if PByte(done)^ <> 0 then PByte(done)^ := Byte(CharHlp.EndActions(attacker))
 end;
 
 procedure NoteAttackDirection(attacker, defender: Types.PCharacter);
 var angle: Byte;
     attackDirection: Byte;
 begin
-  Inc(defender^.combat^.attacksTaken);
+  Inc(Types.PCharacter(defender)^.combat^.attacksTaken);
   attackDirection := CharHlp.DirTowardTarget(defender, attacker);
-  angle := (attackDirection - defender^.combat^.direction + 8) mod 8;
+  angle := (attackDirection - Types.PCharacter(defender)^.combat^.direction + 8) mod 8;
   if angle > 4 then angle := 8 - angle;
-  defender^.combat^.attackAngles := (defender^.combat^.attackAngles + angle) mod 8
+  Types.PCharacter(defender)^.combat^.attackAngles := (Types.PCharacter(defender)^.combat^.attackAngles +
+    angle) mod 8
 end;
 
 procedure MakeAttack(attacker, defender: Types.PCharacter; fromBehind: Byte; weapon: Types.PItem; var done: Byte);
 var
-  thrownCopy: Types.PItem;
-  walker: Types.PItem;
-  savedCharacter: Types.PCharacter;
+  thrownCopy: Pointer;
+  walker: Pointer;
+  savedCharacter: Pointer;
   direction: Byte;
 begin
   GDVars.showTurn := 1;
   GDVars.combatInfoDirty := 1;
   GDVars.roundLimit := GDVars.roundNumber + 15;
-  if (defender^.combat^.attacksTaken < 2)
+  if (Types.PCharacter(defender)^.combat^.attacksTaken < 2)
      and (fromBehind = 0) then begin
     direction := CharHlp.DirTowardTarget(defender, attacker);
-    defender^.combat^.direction := (direction + 4) mod 8
+    Types.PCharacter(defender)^.combat^.direction := (direction + 4) mod 8
   end else if CbtMap.CombatIconVisible(defender, 0) then begin
-    direction := defender^.combat^.direction;
+    direction := Types.PCharacter(defender)^.combat^.direction;
     if fromBehind = 0 then
-      defender^.combat^.direction := (direction + 4) mod 8
+      Types.PCharacter(defender)^.combat^.direction := (direction + 4) mod 8
   end;
   if CbtMap.CombatIconVisible(defender, 0) then
     CbtMap.SetCreatureFacing(defender, direction, 0, 0);
   direction := CharHlp.DirTowardTarget(attacker, defender);
   CharHlp.CombatPrintCreatureInfo(attacker);
   CbtMap.SetCreatureFacing(attacker, direction, 1, 0);
-  attacker^.combat^.target := defender;
+  Types.PCharacter(attacker)^.combat^.target := defender;
   Delay(100);
   if weapon <> nil then CbtActs.AnimateMissile(attacker, defender, weapon);
-  if (attacker^.equipped[0]^.itemType = 28)
-     or (attacker^.equipped[0]^.itemType = 29)
+  if (Types.PCharacter(attacker)^.equipped[0]^.itemType = 28)
+     or (Types.PCharacter(attacker)^.equipped[0]^.itemType = 29)
   then
-    CbtActs.AnimateMissile(attacker, defender, attacker^.equipped[0]);
+    CbtActs.AnimateMissile(attacker, defender, Types.PCharacter(attacker)^.equipped[0]);
   done := 1;
-  if (attacker^.attacksLeft[1] > 0) or (attacker^.attacksLeft[2] > 0) then begin
+  if (Types.PCharacter(attacker)^.attacksLeft[1] > 0) or
+      (Types.PCharacter(attacker)^.attacksLeft[2] > 0) then begin
     savedCharacter := GDVars.currentCharacter;
     GDVars.currentCharacter := attacker;
-    CbtActs.RollAttacks(attacker, defender, fromBehind, done, weapon);
+    CbtActs.RollAttacks(attacker, defender, fromBehind, @done, weapon);
     if weapon <> nil then
       if not CharHlp.HasReadiedHoopak(attacker) then begin
-        if weapon^.quantity > 0 then
-          Dec(weapon^.quantity, GDVars.attacksMade[1]);
-        if weapon^.quantity = 0 then
-          if CharHlp.HasThrowableWeapon(attacker) and (weapon^.effect <> C_Effect.SPIRITUAL_HAMMER) then begin
+        if Types.PItem(weapon)^.quantity > 0 then
+          Dec(Types.PItem(weapon)^.quantity, GDVars.attacksMade[1]);
+        if Types.PItem(weapon)^.quantity = 0 then
+          if CharHlp.HasThrowableWeapon(attacker) and
+              (Types.PItem(weapon)^.effect <> C_Effect.SPIRITUAL_HAMMER) then begin
             GetMem(thrownCopy, SizeOf(Types.TItem));
-            Move(weapon^, thrownCopy^, SizeOf(Types.TItem));
+            Move(PByte(weapon)^, PByte(thrownCopy)^, SizeOf(Types.TItem));
             walker := GDVars.treasureItems;
             if walker = nil then begin
               GDVars.treasureItems := thrownCopy;
-              thrownCopy^.next := nil
+              Types.PItem(thrownCopy)^.next := nil
             end else begin
-              while (walker^.next <> nil) and (walker <> GDVars.prevTreasure) do
-                walker := walker^.next;
-              thrownCopy^.next := walker^.next;
-              walker^.next := thrownCopy
+              while (Types.PItem(walker)^.next <> nil) and (walker <> GDVars.prevTreasure) do
+                walker := Types.PItem(walker)^.next;
+              Types.PItem(thrownCopy)^.next := Types.PItem(walker)^.next;
+              Types.PItem(walker)^.next := thrownCopy
             end;
-            thrownCopy^.equipped := 0;
-            CharHlp.RemoveItem(attacker, weapon);
+            Types.PItem(thrownCopy)^.equipped := 0;
+            CharHlp.RemoveItem(attacker, Types.PItem(weapon));
             GDVars.prevTreasure := thrownCopy
           end else
-            CharHlp.RemoveItem(attacker, weapon)
+            CharHlp.RemoveItem(attacker, Types.PItem(weapon))
       end;
     CharHlp.RecalcStats(attacker);
     GDVars.currentCharacter := savedCharacter
@@ -972,11 +953,17 @@ begin
   if done <> 0 then
     done := Byte(CharHlp.EndActions(attacker));
   if CbtMap.CombatIconVisible(attacker, 0) then begin
-    CbtMap.SetCreatureFacing(attacker, attacker^.combat^.direction, 1, 1);
-    CbtMap.SetCreatureFacing(attacker, attacker^.combat^.direction, 0, 0)
+    CbtMap.SetCreatureFacing(attacker, Types.PCharacter(attacker)^.combat^.direction, 1, 1);
+    CbtMap.SetCreatureFacing(attacker, Types.PCharacter(attacker)^.combat^.direction, 0, 0)
   end
 end;
 
+{ Raises a defense value for range. With a ranged weapon the band is (range - 1) div 3 steps; a defender more than one
+  band away adds 2 and more than two bands away 3 more. A weapon of range 3 or less has a band of 0, so any distance
+  adds both. Melee adds nothing.
+  @param(attacker The creature attacking.)
+  @param(defender The creature attacked.)
+  @param(armorClass The defense value, raised in place.) }
 procedure ApplyRangePenalty(attacker, defender: Types.PCharacter; var armorClass: Byte);
 var
   band: ShortInt;
@@ -984,7 +971,7 @@ var
 begin
   distance := CharHlp.CalcDistance(attacker, defender);
   if CharHlp.HasRangedWeapon(attacker) then
-    band := (GDVars.baseItems[attacker^.equipped[0]^.itemType].range - 1) div 3
+    band := (GDVars.baseItems[Types.PCharacter(attacker)^.equipped[0]^. itemType].range - 1) div 3
   else
     band := distance;
   if distance - band > 0 then begin
@@ -997,14 +984,18 @@ begin
   end
 end;
 
-procedure NoopCbtActs;
-begin
-end;
-
-function SelectSpellTarget(spellId, aiControlled, groundOk: Byte; var target: Types.TAimResult): Boolean;
+{ Chooses one target for a spell and moves the cast position to it. The player aims with the aim menu. The computer
+  picks a creature, or for an area spell that may be aimed at the ground the best spot. On failure the target is
+  cleared.
+  @param(spellId The spell.)
+  @param(aiControlled Nonzero when the computer is choosing.)
+  @param(groundOk Nonzero allows an area spell to be aimed at the ground.)
+  @param(target Receives the target.)
+  @returns(True when a target was chosen.) }
+function SelectSpellTarget(spellId, aiControlled, groundOk: Byte; var target): Boolean;
 var found: Byte;
     acceptable: Byte;
-    candidate: Types.PCharacter;
+    candidate: Pointer;
     { Unused in this version; see the other implementations of this routine. }
     i: Byte;
     creatureOk: Byte;
@@ -1012,27 +1003,27 @@ var found: Byte;
 
   { Picks the nearest suitable creature and accepts it when RateSpellTarget rates it above 0. }
   function PickSpellTarget: Boolean;
-  var picked: Byte;
-      friendly: Byte;
+  var innerFound: Byte;
+      tableFlag: Byte;
   begin
-    picked := 0;
+    innerFound := 0;
     acceptable := 1;
-    friendly := Byte(GDConsts.spellTable[spellId].hostile = 0);
-    if CbtActs.AcquireTarget(GDVars.currentCharacter, Magic.CalcSpellRange(spellId), 0, 1, friendly) then begin
+    tableFlag := Byte(GDConsts.spellTable[spellId].hostile = 0);
+    if CbtActs.AcquireTarget(GDVars.currentCharacter, Magic.CalcSpellRange(spellId), 0, 1, tableFlag) then begin
       candidate := GDVars.currentCharacter^.combat^.target;
-      if friendly <> 0 then
+      if tableFlag <> 0 then
         team := Byte(GDVars.currentCharacter^.side)
       else
         team := Byte(CharHlp.EnemyTeam(GDVars.currentCharacter));
       acceptable := Byte(CbtActs.RateSpellTarget(candidate, spellId, team) > 0);
       if acceptable <> 0 then begin
-        target.target := GDVars.currentCharacter^.combat^.target;
-        target.x := CbtMap.CombatCellX(target.target);
-        target.y := CbtMap.CombatCellY(target.target);
-        picked := 1
+        TAimResult(target).target := GDVars.currentCharacter^.combat^.target;
+        TAimResult(target).x := CbtMap.CombatCellX(TAimResult(target).target);
+        TAimResult(target).y := CbtMap.CombatCellY(TAimResult(target).target);
+        innerFound := 1
       end
     end;
-    PickSpellTarget := Boolean(picked)
+    PickSpellTarget := Boolean(innerFound)
   end;
 begin
   found := 0;
@@ -1040,7 +1031,7 @@ begin
     creatureOk := Byte(spellId <> C_Spell.DIMENSION_DOOR);
     CbtActs.CombatAimMenu(GDVars.currentCharacter, Magic.CalcSpellRange(spellId), GDConsts.spellAimMode, groundOk,
                           creatureOk, found, target);
-    GDVars.currentCharacter^.combat^.target := target.target
+    GDVars.currentCharacter^.combat^.target := TAimResult(target).target
   end else begin
     if groundOk = 0 then
       found := Byte(PickSpellTarget)
@@ -1051,36 +1042,26 @@ begin
   end;
   if found <> 0 then begin
     SelectSpellTarget := True;
-    GDVars.targetX := target.x;
-    GDVars.targetY := target.y
+    GDVars.targetX := TAimResult(target).x;
+    GDVars.targetY := TAimResult(target).y
   end else begin
     SelectSpellTarget := False;
-    FillChar(target, SizeOf(target), 0)
+    FillChar(target, 7, 0)
   end
 end;
-
-function AimTargetMenu(character, target: Types.PCharacter; range, aimMode, emptyCellOk, creatureOk, targetOk, x,
-                       y: Byte): Boolean; forward;
-
-procedure ConfirmAttackTarget(character, target: Types.PCharacter; aiMode: Byte; var done: Byte;
-                              var aim: Types.TAimResult); forward;
-
-procedure ManualAimCursor(character, target: Types.PCharacter; range, aimMode, emptyCellOk, creatureOk: Byte;
-                          var targetOk, accepted: Byte; var aim: Types.TAimResult; coordX, coordY: Byte); forward;
 
 procedure SelectCombatTargets(spellId, aiMode: Byte; var outcome: Byte);
 var
   total: Byte;
   count: Byte;
   scanIndex: Byte;
-  budget: Byte;
+  threshold: Byte;
   cost: Byte;
   { Unused in this version; see the other implementations of this routine. }
   candidateSlots: array[1..3] of Byte;
   target: Pointer;
-  aim: Types.TAimResult absolute target;
-  duplicate: Byte;
-  stopped: Byte;
+  duplicateFlag: Byte;
+  resultFlag: Byte;
 begin
   FillChar(GDVars.spellTargetState.targets, SizeOf(GDVars.spellTargetState.targets), 0);
   outcome := 1;
@@ -1097,23 +1078,23 @@ begin
     cost := 0;
     count := 0;
     if spellId = C_Spell.FAERIE_FIRE then
-      budget := CharHlp.GetCasterLevel(C_Spell.FAERIE_FIRE)
+      threshold := CharHlp.GetCasterLevel(C_Spell.FAERIE_FIRE)
     else
-      budget := FxEngine.RollDice(2, 4);
-    stopped := 0;
+      threshold := FxEngine.RollDice(2, 4);
+    resultFlag := 0;
     repeat
-      if CbtActs.SelectSpellTarget(spellId, aiMode, 0, aim) then begin
-        duplicate := 0;
+      if CbtActs.SelectSpellTarget(spellId, aiMode, 0, target) then begin
+        duplicateFlag := 0;
         for scanIndex := 1 to count do
-          if GDVars.spellTargetState.targets[scanIndex] = target then duplicate := 1;
-        if duplicate = 0 then begin
+          if GDVars.spellTargetState.targets[scanIndex] = target then duplicateFlag := 1;
+        if duplicateFlag = 0 then begin
           Inc(count);
           GDVars.spellTargetState.targets[count] := target;
           GDVars.targetX := CbtMap.CombatCellX(target);
           GDVars.targetY := CbtMap.CombatCellY(target);
           Inc(GDVars.spellTargetState.count);
           if spellId <> C_Spell.FAERIE_FIRE then
-            case Byte(GDVars.spellTargetState.targets[count]^.levelHighest) of
+            case GDVars.spellTargetState.targets[count]^.levelHighest of
               0, 1: Inc(cost, 1);
               2: Inc(cost, 2);
               3: Inc(cost, 4)
@@ -1124,23 +1105,22 @@ begin
               2, 3: Inc(cost, 2);
               4: Inc(cost, 4)
             end;
-          if (count > 1) and (cost > budget) then stopped := 1
+          if (count > 1) and (cost > threshold) then resultFlag := 1
         end else begin
           if aiMode <> 0 then
-            Dec(budget)
+            Dec(threshold)
           else
             CharHlp.PrintBottomLine('Already been targeted')
         end;
         CbtMap.RedrawArenaCell(CbtMap.CombatCellX(target), CbtMap.CombatCellY(target))
       end else
-        stopped := 1
-    until (stopped <> 0) or (budget = 0)
+        resultFlag := 1
+    until (resultFlag <> 0) or (threshold = 0)
   end;
   8..14: begin
-    if CbtActs.SelectSpellTarget(spellId, aiMode, 1, aim) then begin
+    if CbtActs.SelectSpellTarget(spellId, aiMode, 1, target) then begin
       Pathing.BuildTargetList(GDVars.targetX, GDVars.targetY, GDConsts.spellTable[spellId].targeting and $07,
-                              GDConsts.combatTables.anyDirection,
-                              1, GDVars.arena);
+                              GDConsts.anyDirection, 1, GDVars.arena);
       for count := 1 to GDVars.targetCount do
         GDVars.spellTargetState.targets[count] := GDVars.creatures[GDVars.targetList[count].characterIndex];
       GDVars.spellTargetState.count := GDVars.targetCount;
@@ -1149,13 +1129,13 @@ begin
       outcome := 0
   end;
   15: begin
-    if CbtActs.SelectSpellTarget(spellId, aiMode, 0, aim) then begin
+    if CbtActs.SelectSpellTarget(spellId, aiMode, 0, target) then begin
       if GDVars.currentCharacter^.combat^.target <> nil then begin
         GDVars.spellTargetState.targets[1] := GDVars.currentCharacter^.combat^.target;
         GDVars.spellTargetState.count := 1
       end else begin
         Pathing.BuildTargetList(GDVars.targetX, GDVars.targetY, GDConsts.spellTable[spellId].targeting shr 4,
-                                GDConsts.combatTables.anyDirection, 1, GDVars.arena);
+                                GDConsts.anyDirection, 1, GDVars.arena);
         for count := 1 to GDVars.targetCount do
           GDVars.spellTargetState.targets[count] := GDVars.creatures[GDVars.targetList[count].characterIndex];
         GDVars.spellTargetState.count := GDVars.targetCount;
@@ -1168,13 +1148,13 @@ begin
     total := (GDConsts.spellTable[spellId].targeting and $03) + 1;
     count := 0;
     while total > 0 do begin
-      if CbtActs.SelectSpellTarget(spellId, aiMode, 0, aim) then begin
-        duplicate := 0;
+      if CbtActs.SelectSpellTarget(spellId, aiMode, 0, target) then begin
+        duplicateFlag := 0;
         for scanIndex := 1 to count do
-          if GDVars.spellTargetState.targets[scanIndex] = target then duplicate := 1;
+          if GDVars.spellTargetState.targets[scanIndex] = target then duplicateFlag := 1;
         if (spellId = C_Spell.HOLD_PERSON_CLERIC) or (spellId = C_Spell.HOLD_PERSON_MAGE) then
-          if target = GDVars.currentCharacter then duplicate := 1;
-        if duplicate = 0 then begin
+          if target = GDVars.currentCharacter then duplicateFlag := 1;
+        if duplicateFlag = 0 then begin
           Inc(count);
           GDVars.spellTargetState.targets[count] := target;
           Dec(total);
@@ -1205,95 +1185,105 @@ begin
 end;
 
 procedure CastSpellCombat(spellId, aiMode: Byte; var outcome: Boolean);
-var spell: Byte;
+var kindLocal: Byte;
     outcomeByte: Byte absolute outcome;
     { Unused in this version; see the other implementations of this routine. }
     spellLevel: Byte;
-    rounds: Byte;
-    slot: Byte;
+    remainder: Byte;
+    scanIndex: Byte;
     wordOut: Word;
     byteOut: Byte;
     spellIndex: Integer absolute wordOut;
     hasSpells: Boolean absolute byteOut;
-    caster: Types.PCharacter;
-    entry: Types.PCharacter;
+    current: Pointer;
+    entryPointer: Pointer;
 begin
-  caster := GDVars.currentCharacter;
+  current := GDVars.currentCharacter;
   byteOut := 1;
   wordOut := 65535;
   outcome := False;
-  spell := spellId;
-  if spell = 0 then
-    spell := ViewChar.SpellMenu(0, 1, spellIndex, hasSpells);
-  if spell > 0 then
-    if GDConsts.spellTable[spell].combatOk = 0 then begin
+  kindLocal := spellId;
+  if kindLocal = 0 then
+    kindLocal := ViewChar.SpellMenu(0, 1, spellIndex, hasSpells);
+  if kindLocal > 0 then
+    if GDConsts.spellTable[kindLocal].combatOk = 0 then begin
       CharHlp.PrintBottomLine('Camp Only Spell');
-      spell := 0
+      kindLocal := 0
     end;
   if aiMode = 0 then begin
     CharHlp.DisplayCombatInterface;
     GDVars.showTurn := 1;
     GDVars.combatInfoDirty := 1;
-    CbtMap.DisplayMapViewCentered(caster, 3, True);
-    CharHlp.CombatPrintCreatureInfo(caster)
+    CbtMap.DisplayMapViewCentered(current, 3, True);
+    CharHlp.CombatPrintCreatureInfo(current)
   end;
-  if spell > 0 then begin
-    rounds := GDConsts.spellTable[spell].castingTime div 3;
-    if rounds = 0 then begin
-      Magic.CastSpell(spell, aiMode, 1, outcomeByte);
-      outcome := CharHlp.EndActions(caster)
+  if kindLocal > 0 then begin
+    remainder := GDConsts.spellTable[kindLocal].castingTime div 3;
+    if remainder = 0 then begin
+      Magic.CastSpell(kindLocal, aiMode, 1, outcomeByte);
+      outcome := CharHlp.EndActions(current)
     end else begin
       outcome := True;
-      CharHlp.PrintCreatureMessage(caster, 'Begins Casting', 10, True);
-      caster^.combat^.spellCast := spell;
-      if caster^.combat^.initiative > rounds then
-        Dec(caster^.combat^.initiative, rounds)
+      CharHlp.PrintCreatureMessage(current, 'Begins Casting', 10, True);
+      Types.PCharacter(current)^.combat^.spellCast := kindLocal;
+      if Types.PCharacter(current)^.combat^.initiative > remainder then
+        Dec(Types.PCharacter(current)^.combat^.initiative, remainder)
       else
-        caster^.combat^.initiative := 1;
-      slot := GDVars.turnIndex;
-      entry := GDVars.combatOrder[slot + 1];
-      while (entry <> nil) and
-          ((entry^.combat^.initiative > caster^.combat^.initiative) or
-           ((entry^.combat^.initiative = caster^.combat^.initiative) and
-            (FxEngine.RollDice(1, 2) = 1))) do begin
-        GDVars.combatOrder[slot] := entry;
-        Inc(slot);
-        entry := GDVars.combatOrder[slot + 1]
+        Types.PCharacter(current)^.combat^.initiative := 1;
+      scanIndex := GDVars.turnIndex;
+      entryPointer := GDVars.combatOrder[scanIndex + 1];
+      while (entryPointer <> nil) and
+          ((Types.PCharacter(entryPointer)^.combat^.initiative > Types.PCharacter(current)^.combat^.initiative) or
+           ((Types.PCharacter(entryPointer)^.combat^.initiative =
+             Types.PCharacter(current)^.combat^.initiative) and (FxEngine.RollDice(1, 2) = 1))) do begin
+        GDVars.combatOrder[scanIndex] := entryPointer;
+        Inc(scanIndex);
+        entryPointer := GDVars.combatOrder[scanIndex + 1]
       end;
-      GDVars.combatOrder[slot] := caster;
+      GDVars.combatOrder[scanIndex] := current;
       Dec(GDVars.turnIndex);
       outcome := True
     end
   end
 end;
 
+{ Tells whether an attack is a backstab: a thief with no weapon or a small blade (item types 3, 4, 17..19, 67), next to
+  a defender of icon size 1 that has been attacked more than once, striking from behind it.
+  @param(attacker Creature attacking.)
+  @param(defender Creature attacked.)
+  @returns(True for a backstab.) }
 function IsBackstab(attacker, defender: Types.PCharacter): Boolean;
 var
-  weapon: Types.PItem;
+  weapon: Pointer;
   { Unused in this version; see the other implementations of this routine. }
-  armor: Types.PItem;
+  armor: Pointer;
   weaponType: Byte;
   canBackstab: Boolean;
 begin
   canBackstab := False;
-  weapon := attacker^.equipped[0];
+  weapon := Types.PCharacter(attacker)^.equipped[0];
   if weapon <> nil then
-    weaponType := weapon^.itemType;
-  armor := attacker^.equipped[2];
-  if attacker^.classLevels[C_Class.THIEF] > 0 then
+    weaponType := Types.PItem(weapon)^.itemType;
+  armor := Types.PCharacter(attacker)^.equipped[2];
+  if Types.PCharacter(attacker)^.classLevels[C_Class.THIEF] > 0 then
     if (weapon = nil) or (weaponType = 67) or (weaponType = 3) or (weaponType = 4) or
         ((weaponType > 16) and (weaponType < 20)) then
       canBackstab := True;
-  if canBackstab and (defender^.combat^.attacksTaken > 1) and (CharHlp.CalcDistance(attacker, defender) < 2) and
-      ((defender^.iconDimensions and $7F) <= 1) and
-      (CharHlp.DirTowardTarget(attacker, defender) = defender^.combat^.direction) then
+  if canBackstab and (Types.PCharacter(defender)^.combat^.attacksTaken > 1) and
+      (CharHlp.CalcDistance(attacker, defender) < 2) and
+      ((Types.PCharacter(defender)^.iconDimensions and $7F) <= 1) and
+      (CharHlp.DirTowardTarget(attacker, defender) = Types.PCharacter(defender)^.combat^.direction) then
     IsBackstab := True
   else
     IsBackstab := False
 end;
 
-procedure AnimateMissile(attacker, defender: Types.PCharacter;
-                         weapon: Types.PItem);
+{ Flies a missile's icon from the attacker to the defender with its sound, the icon and pace by the weapon's item type:
+  arrows and bolts drawn by direction, spinning icons for the thrown weapons.
+  @param(attacker Creature shooting.)
+  @param(defender Creature shot at.)
+  @param(weapon The missile or thrown weapon.) }
+procedure AnimateMissile(attacker, defender, weapon: Pointer);
 var
   frames: Byte;
   direction: Byte;
@@ -1306,7 +1296,7 @@ begin
   frames := 1;
   pace := 10;
   imageSize := GDVars.movingIcon^.imgSize;
-  case weapon^.itemType of
+  case Types.PItem(weapon)^.itemType of
     5, 7, 12, 30, 66: begin
       if Odd(direction) then
         if (direction = C_Dir.SOUTHEAST) or (direction = C_Dir.SOUTHWEST) then
@@ -1353,18 +1343,18 @@ procedure UpdateHostileHpPercent;
 var
   maximumTotal: Word;
   hitPointTotal: Word;
-  combatant: Types.PCharacter;
+  combatant: Pointer;
 begin
   maximumTotal := 0;
   hitPointTotal := 0;
   combatant := GDVars.partyHead;
   while combatant <> nil do begin
-    if Byte(combatant^.side) = 1 then begin
-      if combatant^.enabled <> 0 then
-        hitPointTotal := hitPointTotal + combatant^.hitPoints;
-      maximumTotal := maximumTotal + combatant^.maxHitPoints
+    if Byte(Types.PCharacter(combatant)^.side) = 1 then begin
+      if Types.PCharacter(combatant)^.enabled <> 0 then
+        hitPointTotal := hitPointTotal + Types.PCharacter(combatant)^.hitPoints;
+      maximumTotal := maximumTotal + Types.PCharacter(combatant)^.maxHitPoints
     end;
-    combatant := combatant^.next
+    combatant := Types.PCharacter(combatant)^.next
   end;
   if maximumTotal > 0 then
     GDVars.hostileHpPercent := ((20 * hitPointTotal) div maximumTotal) * 5
@@ -1374,16 +1364,17 @@ function HighestEnemyMovement(creature: Types.PCharacter): Byte;
 var
   highest: Byte;
   movement: Byte;
-  combatant: Types.PCharacter;
+  combatant: Pointer;
 begin
   highest := 0;
   combatant := GDVars.partyHead;
   while combatant <> nil do begin
-    if (Byte(CharHlp.EnemyTeam(creature)) = Byte(combatant^.side)) and (combatant^.enabled <> 0) then begin
+    if (Byte(CharHlp.EnemyTeam(creature)) = Byte(Types.PCharacter(combatant)^.side)) and
+        (Types.PCharacter(combatant)^.enabled <> 0) then begin
       movement := CharHlp.RecalcMovement(combatant) div 2;
       if movement > highest then highest := movement
     end;
-    combatant := combatant^.next
+    combatant := Types.PCharacter(combatant)^.next
   end;
   HighestEnemyMovement := highest
 end;
@@ -1391,9 +1382,10 @@ end;
 function CheckAttackAlly(attacker, defender: Types.PCharacter): Boolean;
 var
   { Unused in this version; see the other implementations of this routine. }
-  combatant: Types.PCharacter;
+  combatant: Pointer;
 begin
-  if (Byte(CharHlp.EnemyTeam(defender)) = Byte(attacker^.side)) or (attacker^.quickFight <> 0) then
+  if (Byte(CharHlp.EnemyTeam(defender)) = Byte(Types.PCharacter(attacker)^.side)) or
+      (Types.PCharacter(attacker)^.quickFight <> 0) then
     CheckAttackAlly := True
   else if MenuCore.YesNoMenu(GDConsts.attackAllyPrompt, GDConsts.noKey) <> GDConsts.yesKey then
     CheckAttackAlly := False
@@ -1420,42 +1412,42 @@ function AimTargetMenu(character, target: Types.PCharacter; range, aimMode, empt
                        y: Byte): Boolean;
 var
   index: Byte;
-  optionCount: Byte;
-  weapon: Types.PItem;
+  choice: Byte;
+  selected: Types.PItem;
   distance: Word;
   { Unused in this version; see the other implementations of this routine. }
-  reachable: Byte;
-  savedDistMode: Byte;
-  xSigned: ShortInt absolute x;
-  ySigned: ShortInt absolute y;
+  mapResult: Byte;
+  savedDisplay: Byte;
+  coordBShort: ShortInt absolute x;
+  coordAShort: ShortInt absolute y;
 begin
   distance := 255;
-  savedDistMode := GDVars.arena^.distMode;
+  savedDisplay := GDVars.arena^.distMode;
   GDVars.arena^.distMode := 1;
-  reachable := Byte(Pathing.WalkLine(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), xSigned, ySigned,
-                                     distance, GDVars.arena));
-  GDVars.arena^.distMode := savedDistMode;
+  mapResult := Byte(Pathing.WalkLine(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), coordBShort,
+                                     coordAShort, distance, GDVars.arena));
+  GDVars.arena^.distMode := savedDisplay;
   distance := distance div 2;
   if aimMode <> GDConsts.spellAimMode then
     TextRend.DisplayString(0, 23, LightGreen, Black, GDConsts.rangeLabel + CharHlp.WordToString(distance) + '  ');
   FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF);
-  optionCount := 0;
+  choice := 0;
   for index := 0 to 5 do begin
     if index = 3 then begin
       if (range >= distance) and (targetOk <> 0) then begin
         if aimMode = GDConsts.spellAimMode then
-          MenuCore.AppendChoice(3, optionCount)
+          MenuCore.AppendChoice(3, choice)
         else if character <> target then begin
           if not CharHlp.HasRangedWeapon(character) then
-            MenuCore.AppendChoice(3, optionCount)
-          else if CharHlp.FindDamagingRangedWeapon(character, weapon) then begin
+            MenuCore.AppendChoice(3, choice)
+          else if CharHlp.FindDamagingRangedWeapon(character, selected) then begin
             if (CharHlp.CountTargets(character, 1, False) = 0) or CharHlp.HasThrowableWeapon(character) then
-              MenuCore.AppendChoice(3, optionCount)
+              MenuCore.AppendChoice(3, choice)
           end
         end
       end
     end else
-      MenuCore.AppendChoice(index, optionCount)
+      MenuCore.AppendChoice(index, choice)
   end;
   if target <> nil then begin
     CbtMap.DisplayMapViewCentered(target, 3, True);
@@ -1473,21 +1465,20 @@ end;
   @param(aiMode 1 for a weapon attack.)
   @param(done False when the attack was declined; otherwise True or the attack's result.)
   @param(aim Receives the target and its cell; cleared when declined.) }
-procedure ConfirmAttackTarget(character, target: Types.PCharacter; aiMode: Byte; var done: Byte;
-                              var aim: Types.TAimResult);
+procedure ConfirmAttackTarget(character, target: Pointer; aiMode: Byte; var done: Byte; var aim);
 var
   { Unused in this version; see the other implementations of this routine. }
   targetDir: Byte;
-  thrown: Types.PItem;
+  selected: Types.PItem;
 begin
-  thrown := nil;
+  selected := nil;
   done := 1;
   if aiMode = GDConsts.attackAimMode then
     if not CbtActs.CheckAttackAlly(character, target) then done := 0;
   if done <> 0 then begin
-    aim.target := target;
-    aim.x := CbtMap.CombatCellX(target);
-    aim.y := CbtMap.CombatCellY(target);
+    TAimResult(aim).target := target;
+    TAimResult(aim).x := CbtMap.CombatCellX(target);
+    TAimResult(aim).y := CbtMap.CombatCellY(target);
     GDVars.arena^.cursorOn := 0;
     CbtMap.ScrollView(GDVars.arena^.ox + 3, GDVars.arena^.oy + 3, 3, C_Dir.CENTER);
     if aiMode = GDConsts.attackAimMode then begin
@@ -1496,14 +1487,14 @@ begin
       else begin
         CbtActs.NoteAttackDirection(character, target);
         if CharHlp.HasRangedWeapon(character) then
-          if CharHlp.FindDamagingRangedWeapon(character, thrown) then
+          if CharHlp.FindDamagingRangedWeapon(character, selected) then
             if CharHlp.HasThrowableWeapon(character) then
-              if CharHlp.CalcDistance(character, target) = 1 then thrown := nil;
-        CbtActs.MakeAttack(character, target, 0, thrown, done)
+              if CharHlp.CalcDistance(character, target) = 1 then selected := nil;
+        CbtActs.MakeAttack(character, target, 0, selected, done)
       end
     end
   end else
-    FillChar(aim, SizeOf(aim), 0)
+    FillChar(aim, 7, 0)
 end;
 
 { Runs the manual aim cursor. Starting at the given cell, the player moves a cursor over the arena with the keypad; for
@@ -1523,18 +1514,18 @@ end;
   @param(aim Receives the target.)
   @param(coordX The starting column.)
   @param(coordY The starting row.) }
-procedure ManualAimCursor(character, target: Types.PCharacter; range, aimMode, emptyCellOk, creatureOk: Byte;
-                          var targetOk, accepted: Byte; var aim: Types.TAimResult; coordX, coordY: Byte);
+procedure ManualAimCursor(character, target: Pointer; range, aimMode, emptyCellOk, creatureOk: Byte; var targetOk,
+                          accepted: Byte; var aim; coordX, coordY: Byte);
 var
-  optionCount: Byte;
-  choice: Byte;
-  weapon: Types.PItem;
+  activeKey: Byte;
+  menuResult: Byte;
+  selected: Types.PItem;
   direction: Byte;
   index: Byte;
   mapX: Byte;
   mapY: Byte;
-  creatureIndex: Byte;
-  terrainIndex: Byte;
+  candidateY: Byte;
+  candidateX: Byte;
   mapXShort: ShortInt absolute mapX;
   mapYShort: ShortInt absolute mapY;
   savedX: Byte;
@@ -1546,21 +1537,21 @@ begin
   savedY := coordY;
   GDVars.cursorX := coordX;
   GDVars.cursorY := coordY;
-  FillChar(aim, SizeOf(aim), 0);
+  FillChar(aim, 7, 0);
   GDVars.arena^.cursorOn := 1;
   GDVars.arena^.cursorSize := 1;
-  choice := 255;
+  menuResult := 255;
   direction := C_Dir.CENTER;
   GDVars.breathAim := 0;
-  while choice > 1 do begin
+  while menuResult > 1 do begin
     CbtMap.ScrollView(Byte(GDVars.cursorX), Byte(GDVars.cursorY), 2, direction);
-    Inc(GDVars.cursorX, GDConsts.combatTables.directionX[direction]);
-    Inc(GDVars.cursorY, GDConsts.combatTables.directionY[direction]);
+    Inc(GDVars.cursorX, GDConsts.directionX[direction]);
+    Inc(GDVars.cursorY, GDConsts.directionY[direction]);
     if GDVars.cursorX < 0 then GDVars.cursorX := 0;
     if GDVars.cursorY < 0 then GDVars.cursorY := 0;
     if GDVars.cursorX > 49 then GDVars.cursorX := 49;
     if GDVars.cursorY > 24 then GDVars.cursorY := 24;
-    CbtMap.GetArenaContents(Byte(GDVars.cursorX), Byte(GDVars.cursorY), creatureIndex, terrainIndex);
+    CbtMap.GetArenaContents(Byte(GDVars.cursorX), Byte(GDVars.cursorY), candidateY, candidateX);
     GameIo.FlushKeys;
     targetOk := 0;
     distance := 255;
@@ -1579,9 +1570,9 @@ begin
     distance := distance div 2;
     target := nil;
     if targetOk <> 0 then begin
-      if creatureIndex > 0 then
-        target := GDVars.creatures[creatureIndex]
-      else if terrainIndex = C_Terr.TERRAIN_CORPSE then begin
+      if candidateY > 0 then
+        target := GDVars.creatures[candidateY]
+      else if candidateX = C_Terr.TERRAIN_CORPSE then begin
         for index := 1 to GDVars.downedCount do
           if (GDVars.downed[index].x = GDVars.cursorX) and (GDVars.downed[index].y = GDVars.cursorY) then
             target := GDVars.downed[index].cr
@@ -1592,28 +1583,28 @@ begin
       CharHlp.CombatPrintCreatureInfo(target)
     end else
       Border.ClearBox(23, 1, 38, 21);
-    if (range < distance) or (GDConsts.combatTables.terrain[terrainIndex].cost = C_Terr.TERRAIN_IMPASSABLE) then
+    if (range < distance) or (GDConsts.terrain[candidateX].cost = C_Terr.TERRAIN_IMPASSABLE) then
       targetOk := 0;
     if target <> nil then begin
       if (not CbtActs.CanTarget(character, target, 1)) or (creatureOk = 0) then
         targetOk := 0;
       if aimMode = GDConsts.attackAimMode then begin
-        if (character = target) or ((creatureIndex = 0) and (terrainIndex = C_Terr.TERRAIN_CORPSE)) then
+        if (character = target) or ((candidateY = 0) and (candidateX = C_Terr.TERRAIN_CORPSE)) then
           targetOk := 0
         else if CharHlp.HasRangedWeapon(character) and
-          ((not CharHlp.FindDamagingRangedWeapon(character, weapon)) or
+          ((not CharHlp.FindDamagingRangedWeapon(character, selected)) or
            ((CharHlp.CountTargets(character, 1, False) > 0) and (not CharHlp.HasThrowableWeapon(character)))) then
           targetOk := 0
       end
     end else if emptyCellOk = 0 then
       targetOk := 0;
     FillChar(GDVars.enabledChoices, SizeOf(GDVars.enabledChoices), $FF);
-    optionCount := 0;
-    if targetOk <> 0 then MenuCore.AppendChoice(0, optionCount)
-    else MenuCore.AppendChoice(1, optionCount);
-    choice := MenuCore.MenuHorizontal(GDConsts.cursorPrompt, GDConsts.cursorMenu, 1, 0);
+    activeKey := 0;
+    if targetOk <> 0 then MenuCore.AppendChoice(0, activeKey)
+    else MenuCore.AppendChoice(1, activeKey);
+    menuResult := MenuCore.MenuHorizontal(GDConsts.cursorPrompt, GDConsts.cursorMenu, 1, 0);
     if GDVars.menuExtendedKey <> 0 then begin
-      case choice of
+      case menuResult of
         Ord(C_Keys.UP): direction := C_Dir.NORTH;
         Ord(C_Keys.PAGE_UP): direction := C_Dir.NORTHEAST;
         Ord(C_Keys.RIGHT): direction := C_Dir.EAST;
@@ -1629,26 +1620,26 @@ begin
         Ord(C_Keys.ESCAPE): begin
           accepted := 0;
           CbtMap.RedrawArenaCell(Byte(GDVars.cursorX), Byte(GDVars.cursorY));
-          FillChar(aim, SizeOf(aim), 0);
-          aim.x := savedX;
-          aim.y := savedY;
+          FillChar(aim, 7, 0);
+          TAimResult(aim).x := savedX;
+          TAimResult(aim).y := savedY;
           CbtMap.ScrollView(savedX, savedY, 0, C_Dir.CENTER);
           GDVars.arena^.cursorOn := 0;
           CbtMap.RedrawArenaCell(savedX, savedY);
           GDVars.breathAim := 0;
-          choice := 1
+          menuResult := 1
         end else direction := C_Dir.CENTER
       end
     end else begin
-      case choice of
+      case menuResult of
         0: begin
           accepted := 1;
-          aim.x := Byte(GDVars.cursorX);
-          aim.y := Byte(GDVars.cursorY);
+          TAimResult(aim).x := Byte(GDVars.cursorX);
+          TAimResult(aim).y := Byte(GDVars.cursorY);
           if target <> nil then
-            aim.target := target
+            TAimResult(aim).target := target
           else
-            aim.target := nil;
+            TAimResult(aim).target := nil;
           GDVars.arena^.cursorOn := 0;
           CbtMap.RedrawArenaCell(Byte(GDVars.cursorX), Byte(GDVars.cursorY));
           GDVars.breathAim := 0
@@ -1656,9 +1647,9 @@ begin
         1: begin
           accepted := 0;
           CbtMap.RedrawArenaCell(Byte(GDVars.cursorX), Byte(GDVars.cursorY));
-          FillChar(aim, SizeOf(aim), 0);
-          aim.x := savedX;
-          aim.y := savedY;
+          FillChar(aim, 7, 0);
+          TAimResult(aim).x := savedX;
+          TAimResult(aim).y := savedY;
           CbtMap.ScrollView(savedX, savedY, 0, C_Dir.CENTER);
           GDVars.arena^.cursorOn := 0;
           CbtMap.RedrawArenaCell(savedX, savedY);
@@ -1671,11 +1662,10 @@ begin
   GDVars.cursorActive := 0
 end;
 
-procedure CombatAimMenu(character: Types.PCharacter; range, aimMode, emptyCellOk, creatureOk: Byte; var done: Byte;
-                        var aim: Types.TAimResult);
-var aimList: TTargetEntryList;
-    weaponRange: Byte;
-    listCount: Byte;
+procedure CombatAimMenu(character: Pointer; range, aimMode, emptyCellOk, creatureOk: Byte; var done: Byte; var aim);
+var targets: array[1..72] of Types.TTargetEntry;
+    localRoll: Byte;
+    targetCount: Byte;
     selectedIndex: Byte;
     { Unused in this version; see the other implementations of this routine. }
     skipStep: Byte;
@@ -1683,9 +1673,9 @@ var aimList: TTargetEntryList;
     oldY: ShortInt;
     newX: ShortInt;
     newY: ShortInt;
-    selected: Types.PCharacter;
-    choice: Byte;
-    targetOk: Byte;
+    selected: Pointer;
+    menuResult: Byte;
+    active: Byte;
     accepted: Byte;
     stop: Byte;
     currentX: ShortInt;
@@ -1696,22 +1686,22 @@ var aimList: TTargetEntryList;
     originalFacing: Byte;
 
   { Moves the selection by delta through the aim list, wrapping, and returns the creature selected. }
-  function AdvanceAimTarget(delta: ShortInt): Types.PCharacter;
+  function AdvanceAimTarget(delta: ShortInt): Pointer;
   var
-    previousTarget: Types.PCharacter;
-    nextTarget: Types.PCharacter;
+    previousTarget: Pointer;
+    nextTarget: Pointer;
   begin
-    previousTarget := GDVars.creatures[aimList[selectedIndex].characterIndex];
+    previousTarget := GDVars.creatures[targets[selectedIndex].characterIndex];
     if previousTarget = nil then previousTarget := character;
-    if listCount < 1 then GameIo.ExitGame;
-    oldX := GDVars.arenaLoc[aimList[selectedIndex].characterIndex].x;
-    oldY := GDVars.arenaLoc[aimList[selectedIndex].characterIndex].y;
+    if targetCount < 1 then GameIo.ExitGame;
+    oldX := GDVars.arenaLoc[targets[selectedIndex].characterIndex].x;
+    oldY := GDVars.arenaLoc[targets[selectedIndex].characterIndex].y;
     Inc(selectedIndex, delta);
-    if selectedIndex = 0 then selectedIndex := listCount;
-    if selectedIndex > listCount then selectedIndex := 1;
-    nextTarget := GDVars.creatures[aimList[selectedIndex].characterIndex];
-    newX := GDVars.arenaLoc[aimList[selectedIndex].characterIndex].x;
-    newY := GDVars.arenaLoc[aimList[selectedIndex].characterIndex].y;
+    if selectedIndex = 0 then selectedIndex := targetCount;
+    if selectedIndex > targetCount then selectedIndex := 1;
+    nextTarget := GDVars.creatures[targets[selectedIndex].characterIndex];
+    newX := GDVars.arenaLoc[targets[selectedIndex].characterIndex].x;
+    newY := GDVars.arenaLoc[targets[selectedIndex].characterIndex].y;
     if (nextTarget = nil) or (newX < 0) or (newY < 0) then begin
       AdvanceAimTarget := previousTarget;
       newX := oldX;
@@ -1727,19 +1717,19 @@ var aimList: TTargetEntryList;
   { Lists the creatures the aimer may target, nearest first, starting at its current target. }
   procedure BuildAimTargets;
   var index: Byte;
-      candidate: Types.PCharacter;
+      candidate: Pointer;
   begin
     selectedIndex := 1;
-    Pathing.BuildTargetList(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), 255,
-                            GDConsts.combatTables.anyDirection, CbtMap.GetIconSize(character), GDVars.arena);
-    listCount := 0;
+    Pathing.BuildTargetList(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), 255, GDConsts.anyDirection,
+                            CbtMap.GetIconSize(character), GDVars.arena);
+    targetCount := 0;
     for index := 1 to GDVars.targetCount do begin
       candidate := GDVars.creatures[GDVars.targetList[index].characterIndex];
       if CbtActs.CanTarget(character, candidate, 0) then begin
-        Inc(listCount);
-        aimList[listCount] := GDVars.targetList[index];
-        if candidate = character^.combat^.target then
-          selectedIndex := listCount
+        Inc(targetCount);
+        targets[targetCount] := GDVars.targetList[index];
+        if candidate = Types.PCharacter(character)^.combat^.target then
+          selectedIndex := targetCount
       end
     end;
     selected := AdvanceAimTarget(0);
@@ -1750,45 +1740,45 @@ var aimList: TTargetEntryList;
   end;
 begin
   CharHlp.CopyIconFacing(28, 0, 0, False);
-  FillChar(aim, SizeOf(aim), 0);
+  FillChar(aim, 7, 0);
   done := 0;
-  weaponRange := range;
-  if weaponRange = 255 then begin
-    if character^.equipped[0] <> nil then
-      weaponRange := GDVars.baseItems[character^.equipped[0]^.itemType].range
+  localRoll := range;
+  if localRoll = 255 then begin
+    if Types.PCharacter(character)^.equipped[0] <> nil then
+      localRoll := GDVars.baseItems[Types.PCharacter(character)^.equipped[0]^.itemType].range
     else
-      weaponRange := 1
+      localRoll := 1
   end;
-  if (weaponRange = 0) or (weaponRange = 255) then weaponRange := 1;
+  if (localRoll = 0) or (localRoll = 255) then localRoll := 1;
   originalX := CbtMap.CombatCellX(character);
   originalY := CbtMap.CombatCellY(character);
   CbtMap.RedrawArenaCell(originalX, originalY);
   BuildAimTargets;
   currentX := CbtMap.CombatCellX(selected);
   currentY := CbtMap.CombatCellY(selected);
-  targetOk := 1;
+  active := 1;
   stop := 0;
   while stop = 0 do begin
-    choice := Byte(CbtActs.AimTargetMenu(character, selected, weaponRange, aimMode, emptyCellOk, creatureOk, targetOk,
-                                         currentX, currentY));
+    menuResult := Byte(CbtActs.AimTargetMenu(character, selected, localRoll, aimMode, emptyCellOk, creatureOk, active,
+                                             currentX, currentY));
     if GDVars.menuExtendedKey = 0 then begin
-      case choice of
-        0: begin targetOk := 1; selected := AdvanceAimTarget(1) end;
-        1: begin targetOk := 1; selected := AdvanceAimTarget(-1) end;
+      case menuResult of
+        0: begin active := 1; selected := AdvanceAimTarget(1) end;
+        1: begin active := 1; selected := AdvanceAimTarget(-1) end;
         2: begin
-          CbtActs.ManualAimCursor(character, selected, weaponRange, aimMode, emptyCellOk, creatureOk, targetOk,
-                                  accepted, aim, currentX, currentY);
-          selected := aim.target;
-          currentX := aim.x;
-          currentY := aim.y;
-          if (targetOk <> 0) and (accepted <> 0) then begin
-            choice := 3;
+          CbtActs.ManualAimCursor(character, selected, localRoll, aimMode, emptyCellOk, creatureOk, active, accepted,
+                                  aim, currentX, currentY);
+          selected := TAimResult(aim).target;
+          currentX := TAimResult(aim).x;
+          currentY := TAimResult(aim).y;
+          if (active <> 0) and (accepted <> 0) then begin
+            menuResult := 3;
             stop := 1;
             GDVars.selectedChoice := 4;
             if selected <> nil then
-              aim.target := selected
+              TAimResult(aim).target := selected
             else
-              aim.target := nil;
+              TAimResult(aim).target := nil;
             done := 1;
             if aimMode = GDConsts.attackAimMode then
               CbtActs.ConfirmAttackTarget(character, selected, aimMode, done, aim);
@@ -1800,12 +1790,12 @@ begin
             GDVars.selectedChoice := 3
         end;
         3: begin
-          aim.x := currentX;
-          aim.y := currentY;
+          TAimResult(aim).x := currentX;
+          TAimResult(aim).y := currentY;
           if selected <> nil then
-            aim.target := selected
+            TAimResult(aim).target := selected
           else
-            aim.target := nil;
+            TAimResult(aim).target := nil;
           done := 1;
           if aimMode = GDConsts.attackAimMode then
             CbtActs.ConfirmAttackTarget(character, selected, aimMode, done, aim);
@@ -1827,14 +1817,14 @@ begin
           stop := 1
         end
       end
-    end else if choice = Ord(C_Keys.ESCAPE) then begin
+    end else if menuResult = Ord(C_Keys.ESCAPE) then begin
       GDVars.arena^.cursorOn := 0;
       CbtMap.RedrawArenaCell(currentX, currentY);
       CbtMap.ScrollView(originalX, originalY, 0, C_Dir.CENTER);
-      choice := 5;
+      menuResult := 5;
       stop := 1
     end;
-    if (choice in [0, 1, 3]) and (selected <> nil) then begin
+    if (menuResult in [0, 1, 3]) and (selected <> nil) then begin
       currentX := CbtMap.CombatCellX(selected);
       currentY := CbtMap.CombatCellY(selected)
     end
@@ -1852,13 +1842,14 @@ begin
   local.retry := 0;
   local.accepted := 0;
   local.lastRetry := 0;
-  local.target := character^.combat^.target;
+  local.target := Types.PCharacter(character)^.combat^.target;
   if (dropCurrent <> 0) or
       ((local.target <> nil) and
-       ((local.target^.side = character^.side) or (local.target^.enabled = 0) or
+       ((Types.PCharacter(local.target)^.side = Types.PCharacter(character)^.side) or
+        (Types.PCharacter(local.target)^.enabled = 0) or
         (not CbtActs.CanTarget(character, local.target, allies)))) then
-    character^.combat^.target := nil;
-  if character^.combat^.target <> nil then
+    Types.PCharacter(character)^.combat^.target := nil;
+  if Types.PCharacter(character)^.combat^.target <> nil then
     local.accepted := 1;
   while (local.accepted = 0) and (local.lastRetry = 0) do begin
     local.lastRetry := local.retry;
@@ -1868,18 +1859,17 @@ begin
     local.count := CharHlp.CountTargets(character, range, Boolean(allies));
     while (local.attempts > 0) and (local.accepted = 0) and (local.count > 0) do begin
       Dec(local.attempts);
-      if CharHlp.HasEffect(character, 91,
-                           local.effect) and (GDVars.creatures[GDVars.targetIndices[1]] = GDVars.yellTarget) and
-          (local.attempts = 19) then
+      if CharHlp.HasEffect(character, 91, local.effect) and
+          (GDVars.creatures[GDVars.targetIndices[1]] = GDVars.yellTarget) and (local.attempts = 19) then
         local.choice := 1
       else
         local.choice := FxEngine.RollDice(1, local.count);
       if GDVars.targetIndices[local.choice] > 0 then begin
         local.target := GDVars.creatures[GDVars.targetIndices[local.choice]];
-        if ((anyReachable <> 0) and (GDVars.arena^.distMode <> 0)) or CbtActs.CanTarget(character, local.target,
-            allies) then begin
+        if ((anyReachable <> 0) and (GDVars.arena^.distMode <> 0)) or
+            CbtActs.CanTarget(character, local.target, allies) then begin
           local.accepted := 1;
-          character^.combat^.target := local.target
+          Types.PCharacter(character)^.combat^.target := local.target
         end else begin
           GDVars.targetIndices[local.choice] := 0;
           for local.choice := 1 to local.count do
@@ -1901,204 +1891,222 @@ function VictoryCheat: Boolean;
 var
   { Unused in this version; see the other implementations of this routine. }
   completed: Boolean;
-  current: Types.PCharacter;
+  current: Pointer;
 begin
   VictoryCheat := False;
-  if ParamStr(2) <> GDVars.debugPassword then Exit;
+  if ParamStr(2) <> PLocalString(@GDVars.debugPassword)^ then
+    Exit;
   VictoryCheat := True;
   CharHlp.PrintBottomLine('The Gods intervene!');
   current := GDVars.partyHead;
   while current <> nil do begin
-    if Byte(current^.side) = 1 then begin
-      current^.enabled := 0;
-      current^.status := C_Status.DEAD_STATUS;
+    if Byte(Types.PCharacter(current)^.side) = 1 then begin
+      Types.PCharacter(current)^.enabled := 0;
+      Types.PCharacter(current)^.status := C_Status.DEAD_STATUS;
       GDVars.arenaLoc[CbtMap.CombatSlot(current)].size := 0
     end;
     completed := CharHlp.EndActions(current);
-    current := current^.next
+    current := Types.PCharacter(current)^.next
   end;
   CbtMap.ScrollView(GDVars.arena^.ox + 3, GDVars.arena^.oy + 3, 255, C_Dir.CENTER)
 end;
 
+{ Rates a creature as a target for a spell: -10 on the wrong team (or healed by fire, for a fire spell); 1 when the
+  spell would affect it, by the spell's own test or, for the rest, when it lacks the spell's effect; 0 otherwise. A
+  minor globe stops spells below level 4, a major globe below level 5, and spell resistance above 50 every spell.
+  @param(candidate The creature.)
+  @param(spellId The spell.)
+  @param(team Team the spell is meant for.)
+  @returns(1, 0 or -10.) }
 function RateSpellTarget(candidate: Types.PCharacter; spellId, team: Byte): ShortInt;
-var score: ShortInt;
-    effect: Types.PEffect;
-    level: ShortInt;
-    effectId: Byte;
+var resultValue: ShortInt;
+    found: Pointer;
+    gate: ShortInt;
+    action: Byte;
 begin
   RateSpellTarget := 0;
-  if Byte(candidate^.side) <> team then begin
+  if Byte(Types.PCharacter(candidate)^.side) <> team then begin
     RateSpellTarget := -10;
     Exit
   end;
-  score := 0;
-  effectId := GDConsts.spellTable[spellId].effectId;
+  resultValue := 0;
+  action := GDConsts.spellTable[spellId].effectId;
   case spellId of
   C_Spell.BLESS_GIFT, C_Spell.BLESS_CLERIC: begin
-    if not CharHlp.HasEffect(candidate, C_Effect.BLESS, effect) then
-      if CharHlp.CountTargets(candidate, 1, False) = 0 then score := 1
+    if not CharHlp.HasEffect(candidate, C_Effect.BLESS, found) then
+      if CharHlp.CountTargets(candidate, 1, False) = 0 then resultValue := 1
   end;
   C_Spell.PRAYER: begin
-    if not CharHlp.HasEffect(GDVars.currentCharacter, C_Effect.PRAYER, effect) then score := 1
+    if not CharHlp.HasEffect(GDVars.currentCharacter, C_Effect.PRAYER, found) then resultValue := 1
   end;
   C_Spell.CURE_LIGHT_WOUNDS, C_Spell.CURE_SERIOUS_WOUNDS, C_Spell.CURE_CRITICAL_WOUNDS,
     C_Spell.HEAL: begin
-    if Byte(candidate^.maxHitPoints > candidate^.hitPoints) <> 0 then score := 1
+    if Byte(Types.PCharacter(candidate)^.maxHitPoints > Types.PCharacter(candidate)^.hitPoints) <> 0 then
+        resultValue := 1
   end;
   C_Spell.CHARM_PERSON_MAMMAL: begin
-    if Byte((candidate^.race < C_Race.MONSTER) or ((candidate^.typeFlags and $10) <> 0)) <> 0 then
-      score := 1
+    if Byte((Types.PCharacter(candidate)^.race < C_Race.MONSTER) or
+            ((Types.PCharacter(candidate)^.typeFlags and $10) <> 0)) <> 0 then
+      resultValue := 1
   end;
   C_Spell.CHARM_PERSON_GIFT, C_Spell.CHARM_PERSON_MAGE: begin
-    if ((candidate^.typeFlags and $02) <> 0) or (Byte(candidate^.iconDimensions = 1) <> 0) then score := 1
+    if ((Types.PCharacter(candidate)^.typeFlags and $02) <> 0) or
+        (Byte(Types.PCharacter(candidate)^.iconDimensions = 1) <> 0) then resultValue := 1
   end;
   65, C_Spell.MAGIC_MISSILE: begin
-    if not CharHlp.HasEffect(candidate, C_Effect.SHIELD, effect) then score := 1
+    if not CharHlp.HasEffect(candidate, C_Effect.SHIELD, found) then resultValue := 1
   end;
   C_Spell.SLEEP: begin
-    if Byte(candidate^.levelHighest < 5) <> 0 then
-      if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_CHARM_SLEEP, effect) then
-        if not CharHlp.HasEffect(candidate, C_Effect.SLEEP, effect) then score := 1
+    if Byte(Types.PCharacter(candidate)^.levelHighest < 5) <> 0 then
+      if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_CHARM_SLEEP, found) then
+        if not CharHlp.HasEffect(candidate, C_Effect.SLEEP, found) then resultValue := 1
   end;
   C_Spell.HOLD_PERSON_CLERIC, C_Spell.HOLD_PERSON_MAGE: begin
-    if Byte(candidate^.race < C_Race.MONSTER) <> 0 then
-      if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_HOLD, effect) then
-        if not CharHlp.HasEffect(candidate, C_Effect.HELD, effect) then score := 1
+    if Byte(Types.PCharacter(candidate)^.race < C_Race.MONSTER) <> 0 then
+      if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_HOLD, found) then
+        if not CharHlp.HasEffect(candidate, C_Effect.HELD, found) then resultValue := 1
   end;
   C_Spell.CURE_BLINDNESS: begin
-    if CharHlp.HasEffect(candidate, C_Effect.BLIND, effect) then score := 1
+    if CharHlp.HasEffect(candidate, C_Effect.BLIND, found) then resultValue := 1
   end;
   C_Spell.REMOVE_CURSE_GIFT, C_Spell.REMOVE_CURSE_CLERIC: begin
-    if CharHlp.HasEffect(candidate, C_Effect.CURSED, effect) then score := 1
+    if CharHlp.HasEffect(candidate, C_Effect.CURSED, found) then resultValue := 1
   end;
   C_Spell.FIREBALL, 64, C_Spell.FLAME_STRIKE, C_Spell.DELAY_BLAST_FIREBALL: begin
-    if CharHlp.HasEffect(candidate, C_Effect.HEALED_BY_FIRE, effect) then score := -10
-    else score := 1
+    if CharHlp.HasEffect(candidate, C_Effect.HEALED_BY_FIRE, found) then resultValue := -10
+    else resultValue := 1
   end;
   C_Spell.LIGHTNING_BOLT: begin
-    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_ELECTRICITY, effect) then score := 1
+    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_ELECTRICITY, found) then resultValue := 1
   end;
   C_Spell.SLAY_LIVING, C_Spell.DEATH_SPELL: begin
-    if (candidate^.immunityFlags and $08) = 0 then score := 1
+    if (Types.PCharacter(candidate)^.immunityFlags and $08) = 0 then resultValue := 1
   end;
   61: begin
-    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_HOLD, effect) then score := 1
+    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_HOLD, found) then resultValue := 1
   end;
   C_Spell.POISON: begin
-    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_POISON_HOLD, effect) then score := 1
+    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_POISON_HOLD, found) then resultValue := 1
   end;
   C_Spell.MASS_CHARM, C_Spell.CHARM_MONSTERS: begin
-    if (candidate^.typeFlags and $02) <> 0 then score := 1
+    if (Types.PCharacter(candidate)^.typeFlags and $02) <> 0 then resultValue := 1
   end;
   C_Spell.CONFUSION: begin
-    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_CONFUSION, effect) then score := 1
+    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_CONFUSION, found) then resultValue := 1
   end;
   C_Spell.FEAR: begin
-    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_FEAR, effect) then score := 1
+    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_FEAR, found) then resultValue := 1
   end;
   C_Spell.CLOUDKILL: begin
-    if candidate^.levelHighest < 6 then score := 1
+    if Types.PCharacter(candidate)^.levelHighest < 6 then resultValue := 1
   end;
   C_Spell.HOLD_MONSTERS: begin
-    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_HOLD, effect) then score := 1
+    if not CharHlp.HasEffect(candidate, C_Effect.IMMUNE_HOLD, found) then resultValue := 1
   end;
   else begin
-    if effectId = 0 then
-      score := 1
-    else if Byte(not CharHlp.HasEffect(candidate, effectId, effect)) <> 0 then
-      score := 1
+    if action = 0 then
+      resultValue := 1
+    else if Byte(not CharHlp.HasEffect(candidate, action, found)) <> 0 then
+      resultValue := 1
   end
   end;
-  level := GDConsts.spellTable[spellId].level;
-  if score > 0 then begin
-    if level < 5 then
-      if CharHlp.HasEffect(candidate, C_Effect.MAJOR_GLOBE, effect) then score := 0;
-    if level < 4 then
-      if CharHlp.HasEffect(candidate, C_Effect.MINOR_GLOBE, effect) then score := 0;
-    if candidate^.spellResistance > 50 then score := 0
+  gate := GDConsts.spellTable[spellId].level;
+  if resultValue > 0 then begin
+    if gate < 5 then
+      if CharHlp.HasEffect(candidate, C_Effect.MAJOR_GLOBE, found) then resultValue := 0;
+    if gate < 4 then
+      if CharHlp.HasEffect(candidate, C_Effect.MINOR_GLOBE, found) then resultValue := 0;
+    if Types.PCharacter(candidate)^.spellResistance > 50 then resultValue := 0
   end;
-  RateSpellTarget := score
+  RateSpellTarget := resultValue
 end;
 
 function RateSpell(character: Types.PCharacter; spellId: Byte): Byte;
-var score: ShortInt;
+var resultValue: ShortInt;
     team: Byte;
     index: Byte;
     count: Byte;
-    range: Byte;
+    roll: Byte;
     { Unused in this version; see the other implementations of this routine. }
     bestScore: Word;
 begin
   RateSpell := 0;
   if GDConsts.spellTable[spellId].hostile = 0 then
-    team := Byte(character^.side)
+    team := Types.PCharacter(character)^.side
   else
     team := Byte(CharHlp.EnemyTeam(character));
   if GDConsts.spellTable[spellId].targeting = 0 then
-    score := CbtActs.RateSpellTarget(character, spellId, team)
+    resultValue := CbtActs.RateSpellTarget(character, spellId, team)
   else begin
-    range := Magic.CalcSpellRange(spellId);
-    Pathing.BuildTargetList(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), range,
-                            GDConsts.combatTables.anyDirection, CbtMap.GetIconSize(character), GDVars.arena);
+    roll := Magic.CalcSpellRange(spellId);
+    Pathing.BuildTargetList(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), roll, GDConsts.anyDirection,
+                            CbtMap.GetIconSize(character), GDVars.arena);
     count := GDVars.targetCount;
     index := 1;
-    score := 0;
+    resultValue := 0;
     if count > 0 then
-      while (index <= count) and (score <= 0) do begin
-        score := CbtActs.RateSpellTarget(GDVars.creatures[GDVars.targetList[index].characterIndex], spellId, team);
+      while (index <= count) and (resultValue <= 0) do begin
+        resultValue := CbtActs.RateSpellTarget(GDVars.creatures[GDVars.targetList[index].characterIndex], spellId,
+                                               team);
         Inc(index)
       end
   end;
-  RateSpell := score
+  RateSpell := resultValue
 end;
 
-function AimAreaSpell(spellId: Byte; var aim: Types.TAimResult): Byte;
+{ For the computer, scores each cell an area spell could be centered on by the targets its area would cover, and aims at
+  the best one the caster reaches along a clear line, a tie taken one time in four. A fireball's radius shrinks by one
+  outside the dungeon.
+  @param(spellId The spell.)
+  @param(aim Receives the cell.)
+  @returns(1 when a cell was found, 0 otherwise.) }
+function AimAreaSpell(spellId: Byte; var aim): Byte;
 var grid: PAimScoreGrid;
-    radius: Byte;
+    baseRange: Byte;
     outerRange: Byte;
     innerRange: Byte;
     { Unused in this version; see the other implementations of this routine. }
     savedTarget: array[1..4] of Byte;
-    current: Types.PCharacter;
+    current: Pointer;
     baseX: ShortInt;
     baseY: ShortInt;
     candidateX: ShortInt;
     candidateY: ShortInt;
     bestDx: ShortInt;
     bestDy: ShortInt;
-    casterX: ShortInt;
-    casterY: ShortInt;
+    selectorX: ShortInt;
+    selectorY: ShortInt;
     x: ShortInt;
     y: ShortInt;
     minX: ShortInt;
     maxX: ShortInt;
     minY: ShortInt;
     maxY: ShortInt;
-    score: ShortInt;
+    rankResult: ShortInt;
     bestScore: ShortInt;
     bounds: TAimBounds;
     { Unused in this version; see the other implementations of this routine. }
     gridMinY: Byte;
-    distance: Word;
+    roll: Word;
     { Unused in this version; see the other implementations of this routine. }
     cellScores: array[1..8] of Byte;
     team: Byte;
 begin
   if GDConsts.spellTable[spellId].hostile = 0 then
-    team := Byte(GDVars.currentCharacter^.side)
+    team := GDVars.currentCharacter^.side
   else
     team := Byte(CharHlp.EnemyTeam(GDVars.currentCharacter));
   AimAreaSpell := 0;
-  radius := GDConsts.spellTable[spellId].targeting - 8;
+  baseRange := GDConsts.spellTable[spellId].targeting - 8;
   if ((spellId = C_Spell.FIREBALL) or (spellId = C_Spell.DELAY_BLAST_FIREBALL)) and
-      (GDVars.zone0^.inDungeon = 0) then Dec(radius);
+      (GDVars.zone0^.inDungeon = 0) then Dec(baseRange);
   current := nil;
-  outerRange := Magic.CalcSpellRange(spellId) + radius;
+  outerRange := Magic.CalcSpellRange(spellId) + baseRange;
   if outerRange > 9 then begin
     outerRange := 9;
     current := GDVars.currentCharacter^.combat^.target
   end;
-  innerRange := outerRange - radius;
+  innerRange := outerRange - baseRange;
   if current = nil then current := GDVars.currentCharacter;
   baseX := ShortInt(CbtMap.CombatCellX(current));
   baseY := ShortInt(CbtMap.CombatCellY(current));
@@ -2116,77 +2124,79 @@ begin
   while current <> nil do begin
     candidateX := ShortInt(CbtMap.CombatCellX(current));
     candidateY := ShortInt(CbtMap.CombatCellY(current));
-    if (current^.enabled <> 0) and (candidateX >= bounds.outerMinX) and (candidateX <= bounds.outerMaxX) and
+    if (Types.PCharacter(current)^.enabled <> 0) and (candidateX >= bounds.outerMinX) and
+        (candidateX <= bounds.outerMaxX) and
         (candidateY >= bounds.outerMinY) and (candidateY <= bounds.outerMaxY) then begin
-      score := CbtActs.RateSpellTarget(current, spellId, team);
-      minY := -radius;
-      maxY := radius;
+      rankResult := CbtActs.RateSpellTarget(current, spellId, team);
+      minY := -baseRange;
+      maxY := baseRange;
       if minY + candidateY < bounds.innerMinY then
         minY := bounds.innerMinY - candidateY;
       if maxY + candidateY > bounds.innerMaxY then
         maxY := bounds.innerMaxY - candidateY;
       for y := minY to maxY do begin
-        minX := candidateX - GDConsts.areaHalfWidths[y, radius];
-        maxX := candidateX + GDConsts.areaHalfWidths[y, radius];
+        minX := candidateX - GDConsts.areaHalfWidths[y, baseRange];
+        maxX := candidateX + GDConsts.areaHalfWidths[y, baseRange];
         if minX < bounds.innerMinX then minX := bounds.innerMinX;
         if maxX > bounds.innerMaxX then maxX := bounds.innerMaxX;
         for x := minX to maxX do
-          Inc(grid^[x - baseX, y + candidateY - baseY], score)
+          Inc(grid^[x - baseX, y + candidateY - baseY], rankResult)
       end
     end;
-    current := current^.next
+    current := Types.PCharacter(current)^.next
   end;
-  casterX := ShortInt(CbtMap.CombatCellX(GDVars.currentCharacter));
-  casterY := ShortInt(CbtMap.CombatCellY(GDVars.currentCharacter));
+  selectorX := ShortInt(CbtMap.CombatCellX(GDVars.currentCharacter));
+  selectorY := ShortInt(CbtMap.CombatCellY(GDVars.currentCharacter));
   bestScore := 0;
   for x := -innerRange to innerRange do
     for y := -innerRange to innerRange do begin
-      score := grid^[x, y];
-      if (score > bestScore) or ((score = bestScore) and (score > 0) and CharHlp.PercentileRoll(25)) then begin
-        candidateX := casterX;
-        candidateY := casterY;
-        distance := Magic.CalcSpellRange(spellId);
+      rankResult := grid^[x, y];
+      if (rankResult > bestScore) or
+          ((rankResult = bestScore) and (rankResult > 0) and CharHlp.PercentileRoll(25)) then begin
+        candidateX := selectorX;
+        candidateY := selectorY;
+        roll := Magic.CalcSpellRange(spellId);
         if (baseX + x >= 0) and (baseX + x <= 49) and (baseY + y >= 0) and (baseY + y < 24) then
-          if Pathing.WalkLine(baseX + x, baseY + y, candidateX, candidateY, distance, GDVars.arena) then begin
+          if Pathing.WalkLine(baseX + x, baseY + y, candidateX, candidateY, roll, GDVars.arena) then begin
             bestDx := x;
             bestDy := y;
-            bestScore := score
+            bestScore := rankResult
           end
       end
     end;
-  aim.target := nil;
+  TAimResult(aim).target := nil;
   if bestScore > 0 then begin
     AimAreaSpell := 1;
-    aim.x := Byte(bestDx + baseX);
-    aim.y := Byte(bestDy + baseY)
+    TAimResult(aim).x := Byte(bestDx + baseX);
+    TAimResult(aim).y := Byte(bestDy + baseY)
   end else begin
     AimAreaSpell := 0;
-    aim.target := nil
+    TAimResult(aim).target := nil
   end;
   FreeMem(grid, SizeOf(TAimScoreGrid))
 end;
 
 procedure UseLeadership;
 var
-  leader: Types.PCharacter;
-  candidate: Types.PCharacter;
-  shown: Byte;
+  leader: Pointer;
+  candidate: Pointer;
+  active: Byte;
   { Unused in this version; see the other implementations of this routine. }
   effect: Types.PEffect;
 
   { Rolls a knight's leadership: 1 when d100 is under its order's base plus its charisma bonus. }
-  function LeadershipRoll(knight: Types.PCharacter): Byte;
+  function LeadershipRoll(info: Pointer): Byte;
   var
     bonus: Byte;
     base: Byte;
   begin
-    case knight^.knightOrder of
+    case Types.PCharacter(info)^.knightOrder of
       1: base := 20;
       2: base := 40;
       3: base := 80
     end;
-    if knight^.stats[C_Stat.CHARISMA].current > 13 then
-      bonus := (knight^.stats[C_Stat.CHARISMA].current - 13) * 5
+    if Types.PCharacter(info)^.stats[C_Stat.CHARISMA].current > 13 then
+      bonus := (Types.PCharacter(info)^.stats[C_Stat.CHARISMA].current - 13) * 5
     else
       bonus := 0;
     if base + bonus > FxEngine.RollDice(1, 100) then
@@ -2195,40 +2205,43 @@ var
       LeadershipRoll := 0
   end;
 begin
-  shown := 0;
+  active := 0;
   candidate := GDVars.partyHead;
   while candidate <> nil do begin
-    if candidate^.side = C_Side.PLAYER then
-      candidate^.quickFight := Byte(candidate^.npc > $7F)
+    if Types.PCharacter(candidate)^.side = C_Side.PLAYER then
+      Types.PCharacter(candidate)^.quickFight := Byte(Types.PCharacter(candidate)^.npc > $7F)
     else
-      candidate^.quickFight := 1;
-    candidate := candidate^.next
+      Types.PCharacter(candidate)^.quickFight := 1;
+    candidate := Types.PCharacter(candidate)^.next
   end;
   leader := GDVars.partyHead;
   while leader <> nil do begin
-    if (leader^.side = C_Side.PLAYER) and (leader^.npc <= $7F) and
-        (leader^.classLevels[C_Class.KNIGHT] > 0) and (leader^.status = C_Status.OKAY) then begin
+    if (Types.PCharacter(leader)^.side = C_Side.PLAYER) and (Types.PCharacter(leader)^.npc <= $7F) and
+        (Types.PCharacter(leader)^.classLevels[C_Class.KNIGHT] > 0) and
+        (Types.PCharacter(leader)^.status = C_Status.OKAY) then begin
       candidate := GDVars.partyHead;
       while candidate <> nil do begin
-        if (candidate^.side = C_Side.PLAYER) and (candidate^.npc > $7F) and (candidate^.quickFight <> 0) and
-            (candidate^.status = C_Status.OKAY) and (candidate^.stats[C_Stat.INTELLIGENCE].current > 3) then begin
+        if (Types.PCharacter(candidate)^.side = C_Side.PLAYER) and
+            (Types.PCharacter(candidate)^.npc > $7F) and (Types.PCharacter(candidate)^.quickFight <> 0) and
+            (Types.PCharacter(candidate)^.status = C_Status.OKAY) and
+            (Types.PCharacter(candidate)^.stats[C_Stat.INTELLIGENCE].current > 3) then begin
           if LeadershipRoll(leader) <> 0 then begin
-            if shown = 0 then begin
-              shown := 1;
+            if active = 0 then begin
+              active := 1;
               Border.DrawWindowFrame(0);
               TextRend.DisplayMessageWindow(1, 1, 38, 22, LightMagenta, Black, True, '  Using leadership ability ');
               TextRend.DisplayMessageWindow(1, 3, 38, 22, White, Black, True,
-                                            leader^.name + ' leads ' + candidate^.name + '.')
+                                            PLocalString(leader)^ + ' leads ' + PLocalString(candidate)^ + '.')
             end;
-            candidate^.quickFight := 0
+            Types.PCharacter(candidate)^.quickFight := 0
           end
         end;
-        candidate := candidate^.next
+        candidate := Types.PCharacter(candidate)^.next
       end
     end;
-    leader := leader^.next
+    leader := Types.PCharacter(leader)^.next
   end;
-  if shown <> 0 then
+  if active <> 0 then
     TextRend.DisplayAndPause(LightMagenta, Black, GDConsts.pressToContinue)
 end;
 begin

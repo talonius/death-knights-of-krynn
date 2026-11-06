@@ -3,8 +3,8 @@
 {$O+,F+,S-,R-,V-,B-,I-}
 unit CombatAi;
 interface
-uses C_Class, C_Cond, C_Dir, C_Effect, C_Npc, C_Side, C_Stat, C_Status, C_Terr, Crt, GDConsts, GDVars,
-  Types, CharHlp, CbtActs, ViewChar, FxEngine, CbtMap, Magic, MenuCore, Pathing, TextRend, GameIo;
+uses C_Class, C_Cond, C_Dir, C_Effect, C_Npc, C_Side, C_Status, C_Terr, Crt, GDConsts, GDVars, CharHlp, CbtActs,
+  FxEngine, CbtMap, Magic, MenuCore, Pathing, TextRend, ViewChar, GameIo, Types;
 
 { One turn under computer control: picks a target if there is none, reads a waiting key, rerolls the stance when it is
   outside 1..4 or on a 1 in 4 (1..4, or 5..6 one time in eight), checks morale, then uses an item, casts a spell begun
@@ -13,26 +13,28 @@ uses C_Class, C_Cond, C_Dir, C_Effect, C_Npc, C_Side, C_Stat, C_Status, C_Terr, 
   @param(cr Creature whose turn it is.) }
 procedure CombatAiControl(cr: Types.PCharacter);
 implementation
-const
-  MOVE_TEXT = 'Move/Attack, Move Left = ';
-  AI_DISPLAY_ON_TEXT = 'Magic On';
-  AI_DISPLAY_OFF_TEXT = 'Magic Off';
-  FORCED_FLEE_TEXT = 'is forced to flee';
-  SURRENDER_TEXT = 'Surrenders';
 
 function TurnUndeadAi(cr: Types.PCharacter): Boolean; forward;
 
 function SelectItemToUse(cr: Types.PCharacter): Boolean; forward;
 
+function PickCastableSpell(cr: Types.PCharacter; var spellCount: Byte): Byte; forward;
+
 function SelectSpellToCast(cr: Types.PCharacter): Boolean; forward;
 
 function AiMoveAttack(cr: Types.PCharacter): Boolean; forward;
+
+procedure AiMoveStep(cr: Types.PCharacter); forward;
+
+function AiCanStep(cr: Types.PCharacter; attempt, baseDirection: Byte; var edge: Boolean): Boolean; forward;
 
 function FinishRound(cr: Types.PCharacter): Boolean; forward;
 
 function CheckKeystroke(cr: Types.PCharacter): Boolean; forward;
 
 function CheckMorale(cr: Types.PCharacter): Boolean; forward;
+
+function CalcWeaponPriority(cr: Types.PCharacter; item: Types.PItem): Byte; forward;
 
 procedure EquipWeaponAndArmor(cr: Types.PCharacter); forward;
 
@@ -59,7 +61,7 @@ begin
   cr^.combat^.aiStance := stance;
   if not done then done := CombatAi.CheckMorale(cr);
   if (cr^.combat^.fleeing <> 0) and (cr^.combat^.panicked = 0) then
-    CharHlp.PrintCreatureMessage(cr, 'flees in panic', 10, True);
+    CharHlp.PrintCreatureMessage(cr, GDConsts.panicText, 10, True);
   if done then Exit;
   if CombatAi.SelectItemToUse(cr) then done := CharHlp.EndActions(cr)
   else if cr^.combat^.spellCast > 0 then begin
@@ -84,7 +86,7 @@ end;
   @returns(True when it turned undead.) }
 function TurnUndeadAi(cr: Types.PCharacter): Boolean;
 var
-  target: Types.PCharacter;
+  target: Pointer;
   best: ShortInt;
 begin
   best := 13;
@@ -258,7 +260,7 @@ end;
   @returns(True when the creature can take the step.) }
 function AiCanStep(cr: Types.PCharacter; attempt, baseDirection: Byte; var edge: Boolean): Boolean;
 var
-  effect: Types.PEffect;
+  effect: Pointer;
   directionOffset: Byte;
   direction: Byte;
   creatureIndex: Byte;
@@ -275,13 +277,13 @@ begin
   CbtMap.ProbeDirection(Types.PCharacter(cr), direction, creatureIndex, terrainIndex, adjacent1, adjacent2);
   if terrainIndex = 0 then edge := True
   else begin
-    if GDConsts.combatTables.terrain[terrainIndex].cost = C_Terr.TERRAIN_IMPASSABLE then begin
+    if GDConsts.terrain[terrainIndex].cost = C_Terr.TERRAIN_IMPASSABLE then begin
       AiCanStep := False;
       Exit
     end;
     if Odd(direction) then
-      stepCost := GDConsts.combatTables.terrain[terrainIndex].cost * 3
-    else stepCost := GDConsts.combatTables.terrain[terrainIndex].cost * 2;
+      stepCost := GDConsts.terrain[terrainIndex].cost * 3
+    else stepCost := GDConsts.terrain[terrainIndex].cost * 2;
     if creatureIndex = 0 then
       if stepCost < cr^.combat^.movement then begin
         if adjacent1 <> 0 then
@@ -317,11 +319,11 @@ var
   combat: Pointer;
 begin
   TextRend.DisplayString(0, 24, LightGreen, Black,
-                         CombatAi.MOVE_TEXT + CharHlp.ByteToString(cr^.combat^.movement div 2) + ' ');
+                         GDConsts.moveAttackPrompt + CharHlp.ByteToString(cr^.combat^.movement shr 1) + ' ');
   if CombatAi.CheckKeystroke(cr) then Exit;
   if (cr^.combat^.movement div 2 > 0) and (cr^.combat^.initiative > 0) and
-      ((cr^.npc < C_Npc.NON_PLAYER) or ((cr^.npc > $7F) and (GDVars.hostileHpPercent <= GDVars.moraleValue +
-                                                FxEngine.RollDice(1, 100))) or
+      ((cr^.npc < C_Npc.NON_PLAYER) or
+       ((cr^.npc > $7F) and (GDVars.hostileHpPercent <= GDVars.moraleValue + FxEngine.RollDice(1, 100))) or
        (cr^.side = C_Side.ENEMY)) and
       ((cr^.combat^.fleeing <> 0) or (cr^.equipped[2] <> nil) or (cr^.characterClass <> C_Class.MAGE)) then begin
     if cr^.combat^.fleeing = 0 then
@@ -362,8 +364,9 @@ begin
       else done := True
     end;
     if not done then begin
-      GDVars.showTurn := Byte((GDVars.movementOption <> 0) or CbtMap.CombatIconVisible(Types.PCharacter(cr),
-          0) or (cr^.side = C_Side.PLAYER));
+      GDVars.showTurn := Byte((GDVars.movementOption <> 0) or
+                                CbtMap.CombatIconVisible(Types.PCharacter(cr), 0) or
+                                (cr^.side = C_Side.PLAYER));
       CbtMap.SetCreatureFacing(Types.PCharacter(cr), adjustedDirection, 0, 0);
       CbtActs.AttacksOfOpportunity(cr, cr^.combat^.direction);
       if cr^.enabled = 0 then done := CharHlp.EndActions(cr)
@@ -434,7 +437,8 @@ begin
           distance := weaponRange;
           GDVars.arena^.distMode := 0;
           if Pathing.WalkLine(CbtMap.CombatCellX(Types.PCharacter(cr)), CbtMap.CombatCellY(Types.PCharacter(cr)),
-                              targetCellX, targetCellY, distance, GDVars.arena) then
+                              targetCellX, targetCellY,
+                              distance, GDVars.arena) then
             if distance div 2 <= weaponRange then GDVars.movementOption := 1
         end;
       if GDVars.movementOption = 0 then begin
@@ -445,7 +449,7 @@ begin
           end else done := CombatAi.FinishRound(cr)
         end else begin
           pick := FxEngine.RollDice(1, count);
-          target := GDVars.creatures[GDVars.targetIndices[pick]];
+          target := Pointer(GDVars.creatures[GDVars.targetIndices[pick]]);
           if CharHlp.HasRangedWeapon(cr) and (not CharHlp.HasThrowableWeapon(cr)) and
               (CharHlp.CountTargets(cr, 1, False) > 0) then begin
             CombatAi.EquipWeaponAndArmor(cr);
@@ -506,8 +510,8 @@ begin
     case key of
       '2': begin
         GDVars.magicOn := Ord(GDVars.magicOn = 0);
-        if GDVars.magicOn <> 0 then CharHlp.PrintBottomLine(CombatAi.AI_DISPLAY_ON_TEXT)
-        else CharHlp.PrintBottomLine(CombatAi.AI_DISPLAY_OFF_TEXT)
+        if GDVars.magicOn <> 0 then CharHlp.PrintBottomLine(GDConsts.magicOnMsg)
+        else CharHlp.PrintBottomLine(GDConsts.magicOffMsg)
       end;
       ' ': begin
         scan := GDVars.partyHead;
@@ -546,7 +550,7 @@ begin
   FxEngine.RemoveAiEffects(cr);
   if cr^.combat^.panicked <> 0 then begin
     cr^.combat^.fleeing := 1;
-    CharHlp.PrintCreatureMessage(cr, CombatAi.FORCED_FLEE_TEXT, 10, True)
+    CharHlp.PrintCreatureMessage(cr, GDConsts.forcedToFlee, 10, True)
   end else if cr^.npc > $7F then begin
     GDVars.moraleValue := (cr^.npc and C_Npc.MORALE_MASK) shl 1;
     if GDVars.moraleValue > 102 then GDVars.moraleValue := 0;
@@ -557,13 +561,12 @@ begin
       GDVars.moraleValue := GDVars.hostileHpPercent;
       FxEngine.TriggerEffectsWithCondition(C_Cond.MORALE_CHECK, cr);
       if (GDVars.moraleValue < 100 - GDVars.zone1^.moraleBase[GDConsts.moraleBaseIndex + $7C00]) or
-          (GDVars.moraleValue = 0) or
-          (cr^.side = C_Side.PLAYER) then begin
+          (GDVars.moraleValue = 0) or (cr^.side = C_Side.PLAYER) then begin
         roll := CbtActs.HighestEnemyMovement(cr);
         if roll <= CharHlp.RecalcMovement(cr) div 2 then
           cr^.combat^.fleeing := 1
-        else if cr^.stats[C_Stat.INTELLIGENCE].current > 5 then begin
-          FxEngine.PutOutOfPlayWithStatus(cr, C_Status.UNCONSCIOUS, CombatAi.SURRENDER_TEXT);
+        else if cr^.stats[1].current > 5 then begin
+          FxEngine.PutOutOfPlayWithStatus(cr, C_Status.UNCONSCIOUS, GDConsts.surrenders);
           CheckMorale := CharHlp.EndActions(cr)
         end
       end
@@ -687,8 +690,7 @@ begin
     if (cr^.equipped[0] = item) or (cr^.equipped[0]^.cursed <> 0) then
       validCurrent := False;
   if validCurrent then begin
-    if cr^.equipped[0] <> nil then
-      ViewChar.ToggleReadyItem(cr^.equipped[0]);
+    if cr^.equipped[0] <> nil then ViewChar.ToggleReadyItem(cr^.equipped[0]);
     CharHlp.RecalcStats(cr);
     if cr^.equipped[1] <> nil then
       if cr^.equipped[1]^.cursed = 0 then
@@ -710,8 +712,7 @@ begin
       equipmentChanged := True
     end
   end else if (cr^.handsEquipped < 2) and validCurrent then begin
-    if cr^.equipped[1] <> nil then
-      ViewChar.ToggleReadyItem(cr^.equipped[1]);
+    if cr^.equipped[1] <> nil then ViewChar.ToggleReadyItem(cr^.equipped[1]);
     CharHlp.RecalcStats(cr);
     if bestShield <> nil then ViewChar.ToggleReadyItem(bestShield);
     equipmentChanged := True

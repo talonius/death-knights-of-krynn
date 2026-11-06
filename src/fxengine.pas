@@ -5,7 +5,7 @@
 unit FxEngine;
 interface
 uses C_Class, C_Cond, C_Dir, C_Effect, C_Ifc, C_Npc, C_Side, C_Stat, C_Status, C_Terr, GDConsts, GDVars,
-  Types, CharHlp, CbtMap, TextRend, Blit, Pathing;
+  CharHlp, CbtMap, TextRend, Blit, Pathing, Types;
 
 { Prints a message after a creature's name. Unless the creature is already stoned, dead or gone, it then gives it the
   status, takes it out of play at 0 hit points, removes its effects that end at 0 hit points, runs its condition-13
@@ -119,20 +119,6 @@ procedure RemoveAiEffects(character: Types.PCharacter);
   @returns(True when the creature had the effect.) }
 function RemoveEffectWithMessage(character: Types.PCharacter; effectId: Byte): Boolean;
 
-{ Encodes a Strength as an effect strength: 18 with exceptional Strength becomes the exceptional value + 1 (1..101), any
-  other base Strength becomes the base + 100.
-  @param(baseStrength Base Strength.)
-  @param(exceptional Exceptional Strength, read when the base Strength is 18.)
-  @returns(The encoded Strength.) }
-function StrengthModifier(baseStrength, exceptional: Byte): Byte;
-
-{ Decodes an effect's strength byte, bit 7 aside, into Strength: up to 101 is Strength 18 with exceptional Strength of
-  the value less 1, above it Strength of the value less 100 with no exceptional Strength.
-  @param(effect The Strength effect.)
-  @param(baseStrength Receives Strength.)
-  @param(exceptional Receives exceptional Strength.) }
-procedure StrengthEffectToStrength(effect: Types.PEffect; var baseStrength, exceptional: Byte);
-
 { Tells whether a Strength beats a creature's permanent one: a higher base Strength, or 18 with an exceptional Strength
   above its permanent exceptional Strength.
   @param(character Creature compared against.)
@@ -176,9 +162,6 @@ procedure AddEffectWithMessage(character: Types.PCharacter; effectId: Byte; minu
   @returns(True when it healed.) }
 function RestoreHitPoints(character: Types.PCharacter; hitPoints: Byte; showMessage: Boolean): Boolean;
 
-{ Empty routine with no callers. }
-procedure NoopFxEngineA;
-
 { Recalculates an ability score (0 strength, 3 dexterity, 4 constitution, 5 charisma) from its base, the equipped magic
   items and the effects that change it; for constitution also the maximum hit points from the constitution bonus per
   class level, averaged over the classes, and effect 62 at 20 or more.
@@ -205,25 +188,6 @@ const
   COND_SAVING_THROW = 12;
   COND_ATTACK_ROLL_DEF = 16;
   COND_DAMAGE_NOT_SAVED = 20;
-const WANTS_TO_KILL = 'wants to kill ';
-      STARTS_COUGHING = 'starts to cough';
-      CHOKES_FROM_NAUSEA = 'chokes and gags from nausea';
-      LOST_SPELL_MESSAGE = 'lost a spell';
-      POISONED_MESSAGE = 'is Poisoned';
-      KILLED_MESSAGE = 'is killed';
-      EFFECT_REMOVED_MESSAGE = 'is Cured';
-      UNAFFECTED_MESSAGE = 'is Unaffected';
-      TAKES_PREFIX = 'takes ';
-      POINTS_DAMAGE = ' points of damage ';
-      ONE_POINT_DAMAGE = 'takes 1 point of damage ';
-      FROM_FIRE = 'from Fire';
-      FROM_COLD = 'from Cold';
-      FROM_ELECTRICITY = 'from Electricity';
-      FROM_ACID = 'from Acid';
-      FROM_MAGIC = 'from Magic';
-      GOES_DOWN = 'Goes Down';
-      DYING_SUFFIX = ', and is Dying';
-      EXPLOSION_MESSAGE = 'The air clears a little...';
 
 procedure YellTaunt(character: Types.PCharacter);
 var candidate: Types.PCharacter;
@@ -232,9 +196,10 @@ begin
   candidate := GDVars.partyHead;
   while candidate <> nil do begin
     if (candidate^.status = C_Status.OKAY) and (candidate^.stats[C_Stat.INTELLIGENCE].current > 3) and
-        (candidate^.side <> character^.side) and (not CharHlp.IsHelpless(candidate)) and
+        (candidate^.side <> Types.PCharacter(character)^.side) and (not CharHlp.IsHelpless(candidate)) and
         (not FxEngine.RollSavingThrow(candidate, 4, 0)) then begin
-      FxEngine.AddEffectWithMessage(candidate, 91, 0, 255, 0, 0, 0, FxEngine.WANTS_TO_KILL + character^.name)
+      FxEngine.AddEffectWithMessage(candidate, 91, 0, 255, 0, 0, 0,
+                                    GDConsts.wantsToKill + Types.PCharacter(character)^.name)
     end;
     candidate := candidate^.next
   end
@@ -243,15 +208,15 @@ end;
 procedure KillCreature(character: Types.PCharacter; status: Byte; message: Types.TString40);
 begin
   CharHlp.PrintCreatureMessage(character, message, 10, False);
-  case character^.status of
+  case Types.PCharacter(character)^.status of
     C_Status.STONED, C_Status.DEAD_STATUS, C_Status.GONE: ;
   else begin
-    character^.status := status;
-    character^.enabled := 0;
-    character^.hitPoints := 0;
+    Types.PCharacter(character)^.status := status;
+    Types.PCharacter(character)^.enabled := 0;
+    Types.PCharacter(character)^.hitPoints := 0;
     FxEngine.RemoveEffectsHp0(character);
     FxEngine.TriggerEffectsWithCondition(C_Cond.HIT_POINTS_ZERO, character);
-    if (character^.enabled = 0) and (character^.status <> 10) then
+    if (Types.PCharacter(character)^.enabled = 0) and (Types.PCharacter(character)^.status <> 10) then
       CbtMap.CreatureDowned(character);
     TextRend.PauseOnly;
     CharHlp.ClearMessageWindow;
@@ -264,9 +229,9 @@ end;
 procedure CallEffectHandler(effectId: Byte; var character; effect: Pointer; removed: Boolean);
 begin
   if GDVars.handlerOverrideActive <> 0 then
-    GDVars.effectServices.itemHandler(Types.PCharacter(character), effect, removed)
+    GDVars.effectServices.itemHandler(character, effect, removed)
   else
-    GDVars.effectServices.handlers[effectId](Types.PCharacter(character), effect, removed)
+    GDVars.effectServices.handlers[effectId](character, effect, removed)
 end;
 
 procedure RemoveEffect(character: Types.PCharacter; effectId: Byte; effect: Types.PEffect);
@@ -276,17 +241,17 @@ var
 begin
   node := effect;
   if node = nil then begin
-    node := character^.effects;
+    node := Types.PCharacter(character)^.effects;
     while (node <> nil) and (node^.effectId <> effectId) do
       node := node^.next
   end;
   if node = nil then Exit;
   if node^.onRemove <> 0 then
     FxEngine.CallEffectHandler(effectId, character, node, True);
-  if character^.effects = node then
-    character^.effects := node^.next
+  if Types.PCharacter(character)^.effects = node then
+    Types.PCharacter(character)^.effects := node^.next
   else begin
-    previous := character^.effects;
+    previous := Types.PCharacter(character)^.effects;
     while (previous <> nil) and (previous^.next <> node) do
       previous := previous^.next;
     previous^.next := node^.next
@@ -308,22 +273,24 @@ procedure TriggerEffect(var character; effectId: Byte);
 var savedTargets: array[0..215] of Byte;
     candidate: Types.PCharacter;
     effect: Types.PEffect;
+    effectArg: Pointer absolute effect;
     found: Boolean;
     index: Byte;
     range: Byte;
 begin
   found := False;
   candidate := GDVars.partyHead;
-  if CharHlp.HasEffect(Types.PCharacter(character), effectId, effect) then
+  if CharHlp.HasEffect(Types.PCharacter(character), effectId, effectArg) then
     found := True
   else if effectId in [C_Effect.SILENCE, C_Effect.PROTECTION_FROM_EVIL_RADIUS, 46, C_Effect.PRAYER] then begin
-    Move(GDVars.targetList, savedTargets, SizeOf(GDVars.targetList));
+    Move(GDVars.targetList, savedTargets, SizeOf(savedTargets));
     while (candidate <> nil) and (not found) do begin
-      if CharHlp.HasEffect(candidate, effectId, effect) then begin
+      if CharHlp.HasEffect(candidate, effectId, effectArg) then begin
         if GDVars.interfaceState = C_Ifc.IN_COMBAT then begin
           if effectId = C_Effect.PRAYER then range := 6 else range := 1;
-          Pathing.BuildTargetList(CbtMap.CombatCellX(candidate), CbtMap.CombatCellY(candidate), range,
-                                  GDConsts.combatTables.anyDirection, CbtMap.GetIconSize(candidate), GDVars.arena);
+          Pathing.BuildTargetList
+            (CbtMap.CombatCellX(candidate), CbtMap.CombatCellY(candidate), range, GDConsts.anyDirection,
+             CbtMap.GetIconSize(candidate), GDVars.arena);
           for index := 1 to GDVars.targetCount do
             if GDVars.targetList[index].characterIndex = CbtMap.CombatSlot(Types.PCharacter(character)) then
               found := True
@@ -332,7 +299,7 @@ begin
       end;
       candidate := candidate^.next
     end;
-    Move(savedTargets, GDVars.targetList, SizeOf(GDVars.targetList))
+    Move(savedTargets, GDVars.targetList, SizeOf(savedTargets))
   end;
   if found then
     FxEngine.CallEffectHandler(effectId, character, effect, False)
@@ -549,7 +516,9 @@ procedure ConsiderTerrainEffects(character: Types.PCharacter; terrain: Byte);
 var terrainIndex: Byte;
     creatureIndex: Byte;
     effect: Types.PEffect;
+    effectArg: Pointer absolute effect;
     secondEffect: Types.PEffect;
+    secondEffectArg: Pointer absolute secondEffect;
     saved: Boolean;
     cloud: Byte;
     harmful: Byte;
@@ -557,24 +526,25 @@ var terrainIndex: Byte;
     { Unused in this version; see the other implementations of this routine. }
     savedTargets: Boolean;
 begin
-  if character^.enabled <> 0 then begin
+  if Types.PCharacter(character)^.enabled <> 0 then begin
     CbtMap.ProbeDirection(character, C_Dir.CENTER, creatureIndex, terrainIndex, cloud, harmful);
     if (cloud <> 0) and (terrain <> 0) then begin
       if (not CbtMap.CombatIconVisible(character, 1)) or (GDVars.showTurn = 0) then
         CbtMap.ScrollView(CbtMap.CombatCellX(character), CbtMap.CombatCellY(character), 255, C_Dir.CENTER);
-      if (character^.levelUndead = 0) and (not CharHlp.HasEffect(character, C_Effect.HELPLESS, effect)) and
-          (not CharHlp.HasEffect(character, C_Effect.IMMUNE_POISON_HOLD, effect)) then begin
+      if (Types.PCharacter(character)^.levelUndead = 0) and
+          (not CharHlp.HasEffect(character, C_Effect.HELPLESS, effectArg)) and
+          (not CharHlp.HasEffect(character, C_Effect.IMMUNE_POISON_HOLD, effectArg)) then begin
         saved := FxEngine.RollSavingThrow(character, 0, 0);
         if saved then begin
           savedCharacter := GDVars.currentCharacter;
           FxEngine.AddEffectWithMessage(character, C_Effect.STINKING_COUGH, FxEngine.RollDice(1, 4) + 1, 255, 0,
-                                        0, Ord(saved), FxEngine.STARTS_COUGHING);
+                                        0, Ord(saved), GDConsts.startsCoughing);
           secondEffect := nil;
-          if CharHlp.HasEffect(character, C_Effect.STINKING_COUGH, secondEffect) then begin
+          if CharHlp.HasEffect(character, C_Effect.STINKING_COUGH, secondEffectArg) then begin
             FxEngine.CallEffectHandler(C_Effect.STINKING_COUGH, character, effect, False);
-            if character^.combat^.spellCast > 0 then begin
-              CharHlp.PrintCreatureMessage(character, FxEngine.LOST_SPELL_MESSAGE, 12, True);
-              CharHlp.RemoveSpell(character, character^.combat^.spellCast);
+            if Types.PCharacter(character)^.combat^.spellCast > 0 then begin
+              CharHlp.PrintCreatureMessage(character, GDConsts.lostSpellMessage, 12, True);
+              CharHlp.RemoveSpell(character, Types.PCharacter(character)^.combat^.spellCast);
               savedTargets := CharHlp.EndActions(character)
             end
           end;
@@ -582,33 +552,33 @@ begin
         end else begin
           savedCharacter := GDVars.currentCharacter;
           FxEngine.AddEffectWithMessage(character, C_Effect.HELPLESS, FxEngine.RollDice(1, 4) + 1, 255, 0, 0,
-                                        Ord(saved), FxEngine.CHOKES_FROM_NAUSEA);
-          if CharHlp.HasEffect(character, C_Effect.HELPLESS, effect) then
+                                        Ord(saved), GDConsts.chokesFromNausea);
+          if CharHlp.HasEffect(character, C_Effect.HELPLESS, effectArg) then
             FxEngine.CallEffectHandler(C_Effect.HELPLESS, character, effect, False);
           GDVars.currentCharacter := savedCharacter
         end
       end
     end;
     if harmful = 0 then Exit;
-    if character^.enabled = 0 then Exit;
-    case character^.levelHighest of
+    if Types.PCharacter(character)^.enabled = 0 then Exit;
+    case Types.PCharacter(character)^.levelHighest of
       0..4: begin
-        CharHlp.PrintCreatureMessage(character, FxEngine.POISONED_MESSAGE, 10, False);
+        CharHlp.PrintCreatureMessage(character, GDConsts.poisonedMessage, 10, False);
         TextRend.PauseOnly;
         FxEngine.AddEffect(character, C_Effect.POISONED, 0, 255, False);
-        FxEngine.KillCreature(character, C_Status.DEAD_STATUS, FxEngine.KILLED_MESSAGE)
+        FxEngine.KillCreature(character, C_Status.DEAD_STATUS, GDConsts.killedMessage)
       end;
       5: if not FxEngine.RollSavingThrow(character, 0, 252) then begin
-        CharHlp.PrintCreatureMessage(character, FxEngine.POISONED_MESSAGE, 10, False);
+        CharHlp.PrintCreatureMessage(character, GDConsts.poisonedMessage, 10, False);
         TextRend.PauseOnly;
         FxEngine.AddEffect(character, C_Effect.POISONED, 0, 255, False);
-        FxEngine.KillCreature(character, C_Status.DEAD_STATUS, FxEngine.KILLED_MESSAGE)
+        FxEngine.KillCreature(character, C_Status.DEAD_STATUS, GDConsts.killedMessage)
       end;
       6: if not FxEngine.RollSavingThrow(character, 0, 0) then begin
-        CharHlp.PrintCreatureMessage(character, FxEngine.POISONED_MESSAGE, 10, False);
+        CharHlp.PrintCreatureMessage(character, GDConsts.poisonedMessage, 10, False);
         TextRend.PauseOnly;
         FxEngine.AddEffect(character, C_Effect.POISONED, 0, 255, False);
-        FxEngine.KillCreature(character, C_Status.DEAD_STATUS, FxEngine.KILLED_MESSAGE)
+        FxEngine.KillCreature(character, C_Status.DEAD_STATUS, GDConsts.killedMessage)
       end
     end
   end
@@ -623,7 +593,7 @@ begin
       GDVars.currentAttackRoll := 100;
     FxEngine.TriggerEffectsWithCondition(FxEngine.COND_ATTACK_ROLL_DEF, defender);
     if GDVars.currentAttackRoll >= 0 then
-      if GDVars.currentAttackRoll + target > defender^.armorClass then
+      if GDVars.currentAttackRoll + target > Types.PCharacter(defender)^.armorClass then
         AttackRollNoAttacker := True
   end
 end;
@@ -642,7 +612,7 @@ begin
       GDVars.currentAttackRoll := 100;
     FxEngine.TriggerEffectsWithCondition(FxEngine.COND_ATTACK_ROLL_ATT, attacker);
     FxEngine.TriggerEffectsWithCondition(FxEngine.COND_ATTACK_ROLL_DEF, defender);
-    if attacker^.side = C_Side.PLAYER then begin
+    if Types.PCharacter(attacker)^.side = C_Side.PLAYER then begin
       modifier := GDVars.zone1^.modPartyThac0[GDConsts.modPartyThac0Index + $7C00];
       case FxEngine.ATTACK_STYLE of
         1: Inc(modifier, 2);
@@ -653,7 +623,7 @@ begin
     end else
       modifier := GDVars.zone1^.modMonThac0[GDConsts.modMonThac0Index + $7C00];
     if GDVars.currentAttackRoll >= 0 then
-      if GDVars.currentAttackRoll + attacker^.thac0Adjusted + modifier >= target then
+      if GDVars.currentAttackRoll + Types.PCharacter(attacker)^.thac0Adjusted + modifier >= target then
         AttackRoll := True
   end
 end;
@@ -661,26 +631,29 @@ end;
 function RollSavingThrow(character: Types.PCharacter; saveType, modifier: Byte): Boolean;
 var tableIndex: Word;
     effect: Types.PEffect;
+    effectArg: Pointer absolute effect;
 begin
   GDVars.currentSaveResult := True;
   GDVars.currentSaveRoll := FxEngine.RollDice(1, 20);
-  if CharHlp.HasEffect(character, C_Effect.DANCING, effect) then
+  if CharHlp.HasEffect(character, C_Effect.DANCING, effectArg) then
     GDVars.currentSaveRoll := 1;
   case GDVars.currentSaveRoll of
     1: GDVars.currentSaveResult := False;
     20: GDVars.currentSaveResult := True;
   else begin
-    if (character^.classLevels[C_Class.MAGE] > 0) and (character^.robeOrder > 0) then begin
-      tableIndex := character^.robeOrder + $1F8;
-      case GDVars.zone0^.moonPhase[tableIndex + $4B00] of
+    if (Types.PCharacter(character)^.classLevels[C_Class.MAGE] > 0) and
+        (Types.PCharacter(character)^.robeOrder > 0) then begin
+      tableIndex := Types.PCharacter(character)^.robeOrder + $1F8;
+      case GDVars.zone0^.ecl[tableIndex + $4B00] of
         0: Dec(modifier);
         2: Inc(modifier)
       end
     end;
-    GDVars.currentSaveRoll := GDVars.currentSaveRoll + character^.saveBonus + ShortInt(modifier);
+    GDVars.currentSaveRoll := GDVars.currentSaveRoll + Types.PCharacter(character)^.saveBonus +
+      ShortInt(modifier);
     GDVars.currentSaveType := saveType;
     FxEngine.TriggerEffectsWithCondition(FxEngine.COND_SAVING_THROW, character);
-    if character^.saves[ShortInt(saveType)] <= GDVars.currentSaveRoll then
+    if Types.PCharacter(character)^.saves[ShortInt(saveType)] <= GDVars.currentSaveRoll then
       GDVars.currentSaveResult := True
     else
       GDVars.currentSaveResult := False
@@ -713,10 +686,10 @@ var
   effect: Types.PEffect;
 begin
   GetMem(newEffect, SizeOf(Types.TEffect));
-  if character^.effects = nil then
-    character^.effects := newEffect
+  if Types.PCharacter(character)^.effects = nil then
+    Types.PCharacter(character)^.effects := newEffect
   else begin
-    effect := character^.effects;
+    effect := Types.PCharacter(character)^.effects;
     while effect^.next <> nil do
       effect := effect^.next;
     effect^.next := newEffect
@@ -731,14 +704,14 @@ end;
 procedure PutOutOfPlayWithStatus(character: Types.PCharacter; status: Byte; message: Types.TString40);
 var slot: Byte;
 begin
-  if character^.enabled <> 0 then begin
+  if Types.PCharacter(character)^.enabled <> 0 then begin
     slot := CbtMap.CombatSlot(character);
     CbtMap.DisplayMapViewCentered(character, 3, False);
     CharHlp.PrintCreatureMessage(character, message, 10, True);
-    character^.enabled := 0;
-    character^.status := status;
-    if character^.status <> C_Status.RUNNING then
-      character^.hitPoints := 0;
+    Types.PCharacter(character)^.enabled := 0;
+    Types.PCharacter(character)^.status := status;
+    if Types.PCharacter(character)^.status <> C_Status.RUNNING then
+      Types.PCharacter(character)^.hitPoints := 0;
     CbtMap.UpdateCombatMapTile(0, 0, slot);
     Blit.FlushView;
     GDVars.arenaLoc[slot].size := 0;
@@ -750,20 +723,22 @@ end;
 
 procedure RemoveInvisibility(character: Types.PCharacter);
 var effect: Types.PEffect;
+    effectArg: Pointer absolute effect;
 begin
-  while CharHlp.HasEffect(character, C_Effect.INVISIBLE, effect) do
+  while CharHlp.HasEffect(character, C_Effect.INVISIBLE, effectArg) do
     FxEngine.RemoveEffect(character, C_Effect.INVISIBLE, effect)
 end;
 
 procedure RemoveEffectsHp0(character: Types.PCharacter);
 var index: Byte;
     effect: Types.PEffect;
+    effectArg: Pointer absolute effect;
 begin
   for index := 1 to 16 do
     FxEngine.RemoveEffect(character, GDConsts.hitPointEffectIds[index], nil);
-  if CharHlp.HasEffect(character, C_Effect.BERSERK, effect) then
-    if character^.npc = C_Npc.ANIMATED_PLAYER then
-      character^.side := C_Side.PLAYER
+  if CharHlp.HasEffect(character, C_Effect.BERSERK, effectArg) then
+    if Types.PCharacter(character)^.npc = C_Npc.ANIMATED_PLAYER then
+      Types.PCharacter(character)^.side := C_Side.PLAYER
 end;
 
 procedure RemoveAiEffects(character: Types.PCharacter);
@@ -775,15 +750,21 @@ end;
 
 function RemoveEffectWithMessage(character: Types.PCharacter; effectId: Byte): Boolean;
 var effect: Types.PEffect;
+    effectArg: Pointer absolute effect;
 begin
   RemoveEffectWithMessage := False;
-  if CharHlp.HasEffect(character, effectId, effect) then begin
-    CharHlp.PrintCreatureMessage(character, FxEngine.EFFECT_REMOVED_MESSAGE, 10, True);
+  if CharHlp.HasEffect(character, effectId, effectArg) then begin
+    CharHlp.PrintCreatureMessage(character, GDConsts.isCuredText, 10, True);
     FxEngine.RemoveEffect(character, effectId, effect);
     RemoveEffectWithMessage := True
   end
 end;
 
+{ Encodes a Strength as an effect strength: 18 with exceptional Strength becomes the exceptional value + 1 (1..101), any
+  other base Strength becomes the base + 100.
+  @param(baseStrength Base Strength.)
+  @param(exceptional Exceptional Strength, read when the base Strength is 18.)
+  @returns(The encoded Strength.) }
 function StrengthModifier(baseStrength, exceptional: Byte): Byte;
 begin
   StrengthModifier := baseStrength + 100;
@@ -791,6 +772,11 @@ begin
     StrengthModifier := exceptional + 1
 end;
 
+{ Decodes an effect's strength byte, bit 7 aside, into Strength: up to 101 is Strength 18 with exceptional Strength of
+  the value less 1, above it Strength of the value less 100 with no exceptional Strength.
+  @param(effect The Strength effect.)
+  @param(baseStrength Receives Strength.)
+  @param(exceptional Receives exceptional Strength.) }
 procedure StrengthEffectToStrength(effect: Types.PEffect; var baseStrength, exceptional: Byte);
 begin
   exceptional := 0;
@@ -808,18 +794,13 @@ var
   { Unused in this version; see the other implementations of this routine. }
   encumbrance: array[1..11] of Byte;
 begin
-  if (baseStrength > character^.stats[C_Stat.STRENGTH].base) or
-      ((baseStrength = 18) and (exceptional > character^.exceptionalStrengthBase)) then begin
+  if (baseStrength > Types.PCharacter(character)^.stats[C_Stat.STRENGTH].base) or
+      ((baseStrength = 18) and (exceptional > Types.PCharacter(character)^.exceptionalStrengthBase)) then begin
     AdjustForNewStrength := True;
     effectStrength := FxEngine.StrengthModifier(baseStrength, exceptional)
   end else
     AdjustForNewStrength := False
 end;
-
-procedure NoopFxEngineA; begin end;
-
-{ Empty routine with no callers. }
-procedure NoopFxEngineB; begin end;
 
 procedure RecalcAbility(character: Types.PCharacter; stat: ShortInt);
 var
@@ -828,6 +809,7 @@ var
   bestExceptional: Byte;
   candidateExceptional: Byte;
   effect: Types.PEffect;
+  effectArg: Pointer absolute effect;
   oldMaxHitPoints: Byte;
   accumulatedBonus: Byte;
   factor: Byte;
@@ -871,9 +853,9 @@ begin
   candidateBase := 0;
   candidateExceptional := 0;
   overrideValue := 255;
-  modifier := character^.items;
-  bestBase := character^.stats[stat].base;
-  bestExceptional := character^.exceptionalStrengthBase;
+  modifier := Types.PCharacter(character)^.items;
+  bestBase := Types.PCharacter(character)^.stats[stat].base;
+  bestExceptional := Types.PCharacter(character)^.exceptionalStrengthBase;
   while modifier <> nil do begin
     if (modifier^.special > $80) and (modifier^.equipped <> 0) then begin
       modifierCode := modifier^.special and $7F;
@@ -893,8 +875,9 @@ begin
                 5: candidateBase := 23;
                 6: candidateBase := 24
               end;
-            8: if (character^.stats[C_Stat.STRENGTH].base < 18) and (modifier^.effect = C_Stat.STRENGTH) then begin
-                candidateBase := character^.stats[C_Stat.STRENGTH].base + 1;
+            8: if (Types.PCharacter(character)^.stats[C_Stat.STRENGTH].base < 18) and
+              (modifier^.effect = C_Stat.STRENGTH) then begin
+                candidateBase := Types.PCharacter(character)^.stats[C_Stat.STRENGTH].base + 1;
                 candidateExceptional := 0
               end;
             13: overrideValue := 3
@@ -904,32 +887,32 @@ begin
         C_Stat.CONSTITUTION: begin
           if modifierCode = 6 then
             Inc(bestBase)
-          else if (modifierCode = 8) and (character^.stats[C_Stat.CONSTITUTION].base < 18) and
+          else if (modifierCode = 8) and (Types.PCharacter(character)^.stats[C_Stat.CONSTITUTION].base < 18) and
             (modifier^.effect = C_Stat.CONSTITUTION) then
             Inc(bestBase)
         end;
         C_Stat.INTELLIGENCE: case modifierCode of
-            8: if (character^.stats[C_Stat.INTELLIGENCE].base < 18) and
+            8: if (Types.PCharacter(character)^.stats[C_Stat.INTELLIGENCE].base < 18) and
               (modifier^.effect = C_Stat.INTELLIGENCE) then Inc(bestBase);
             12: overrideValue := 7;
             13: overrideValue := 3
           end;
         C_Stat.WISDOM: if (modifierCode = 8) and (modifier^.effect = C_Stat.WISDOM) and
-          (character^.stats[C_Stat.WISDOM].base < 18) then
+          (Types.PCharacter(character)^.stats[C_Stat.WISDOM].base < 18) then
             Inc(bestBase);
         C_Stat.DEXTERITY: case modifierCode of
-            2: case character^.stats[C_Stat.DEXTERITY].base of
+            2: case Types.PCharacter(character)^.stats[C_Stat.DEXTERITY].base of
                 0..6: Inc(bestBase, 4);
                 7..13: Inc(bestBase, 2)
               else Inc(bestBase)
               end;
-            8: if (character^.stats[C_Stat.DEXTERITY].base < 18) and
+            8: if (Types.PCharacter(character)^.stats[C_Stat.DEXTERITY].base < 18) and
               (modifier^.effect = C_Stat.DEXTERITY) then Inc(bestBase);
             10: Dec(bestBase, 2)
           end;
         C_Stat.CHARISMA: case modifierCode of
             6: Dec(bestBase);
-            8: if (character^.stats[C_Stat.CHARISMA].base < 18) and
+            8: if (Types.PCharacter(character)^.stats[C_Stat.CHARISMA].base < 18) and
               (modifier^.effect = C_Stat.CHARISMA) then Inc(bestBase)
           end
       end
@@ -938,16 +921,16 @@ begin
   end;
   case stat of
     C_Stat.STRENGTH: begin
-      if CharHlp.HasEffect(character, C_Effect.STRENGTH, effect) then begin
+      if CharHlp.HasEffect(character, C_Effect.STRENGTH, effectArg) then begin
         FxEngine.StrengthEffectToStrength(effect, candidateBase, candidateExceptional);
         if (bestBase <= 18) and (bestExceptional < 100) then begin
           candidateBase := bestBase + candidateBase;
           if candidateBase > 18 then begin
-            if (character^.classLevels[C_Class.FIGHTER] > 0) or
-                (character^.classLevels[C_Class.PALADIN] > 0) or
-                (character^.classLevels[C_Class.KNIGHT] > 0) or
-                (character^.classLevels[C_Class.RANGER] > 0) then begin
-              candidateExceptional := character^.exceptionalStrength + (candidateBase - 18) * 10;
+            if (Types.PCharacter(character)^.classLevels[C_Class.FIGHTER] > 0) or
+                (Types.PCharacter(character)^.classLevels[C_Class.PALADIN] > 0) or
+                (Types.PCharacter(character)^.classLevels[C_Class.KNIGHT] > 0) or
+                (Types.PCharacter(character)^.classLevels[C_Class.RANGER] > 0) then begin
+              candidateExceptional := Types.PCharacter(character)^.exceptionalStrength + (candidateBase - 18) * 10;
               if candidateExceptional > 100 then
                 candidateExceptional := 100;
               candidateBase := 18
@@ -957,28 +940,28 @@ begin
         end;
         StrClamp
       end;
-      if CharHlp.HasEffect(character, C_Effect.FROST_GIANT_STRENGTH, effect) then begin
+      if CharHlp.HasEffect(character, C_Effect.FROST_GIANT_STRENGTH, effectArg) then begin
         FxEngine.StrengthEffectToStrength(effect, candidateBase, candidateExceptional);
         StrClamp
       end;
-      if CharHlp.HasEffect(character, C_Effect.ENLARGE, effect) then begin
+      if CharHlp.HasEffect(character, C_Effect.ENLARGE, effectArg) then begin
         FxEngine.StrengthEffectToStrength(effect, candidateBase, candidateExceptional);
         StrClamp
       end;
       if overrideValue <> 255 then begin
-        character^.stats[C_Stat.STRENGTH].current := overrideValue;
-        character^.exceptionalStrength := 0
+        Types.PCharacter(character)^.stats[C_Stat.STRENGTH].current := overrideValue;
+        Types.PCharacter(character)^.exceptionalStrength := 0
       end else begin
-        character^.stats[C_Stat.STRENGTH].current := bestBase;
-        character^.exceptionalStrength := bestExceptional
+        Types.PCharacter(character)^.stats[C_Stat.STRENGTH].current := bestBase;
+        Types.PCharacter(character)^.exceptionalStrength := bestExceptional
       end
     end;
     C_Stat.CONSTITUTION: begin
       factorCount := 0;
-      oldMaxHitPoints := character^.maxHitPoints;
-      character^.maxHitPoints := character^.baseMaxHitPoints;
+      oldMaxHitPoints := Types.PCharacter(character)^.maxHitPoints;
+      Types.PCharacter(character)^.maxHitPoints := Types.PCharacter(character)^.baseMaxHitPoints;
       for index := 0 to 7 do begin
-        factor := character^.classLevels[index];
+        factor := Types.PCharacter(character)^.classLevels[index];
         if factor > 0 then
           Inc(factorCount);
         if GDConsts.firstFixedHpLevel[ShortInt(index)] < factor then
@@ -987,18 +970,19 @@ begin
           StatBonus(ShortInt(index), factor)
       end;
       accumulatedBonus := accumulatedBonus div factorCount;
-      Inc(character^.maxHitPoints, accumulatedBonus);
-      if character^.maxHitPoints > oldMaxHitPoints then
-        Inc(character^.hitPoints, character^.maxHitPoints - oldMaxHitPoints);
-      if character^.maxHitPoints < oldMaxHitPoints then begin
-        if character^.hitPoints > oldMaxHitPoints - character^.maxHitPoints then
-          Dec(character^.hitPoints, oldMaxHitPoints - character^.maxHitPoints)
+      Inc(Types.PCharacter(character)^.maxHitPoints, accumulatedBonus);
+      if Types.PCharacter(character)^.maxHitPoints > oldMaxHitPoints then
+        Inc(Types.PCharacter(character)^.hitPoints, Types.PCharacter(character)^.maxHitPoints - oldMaxHitPoints);
+      if Types.PCharacter(character)^.maxHitPoints < oldMaxHitPoints then begin
+        if Types.PCharacter(character)^.hitPoints >
+            oldMaxHitPoints - Types.PCharacter(character)^.maxHitPoints then
+          Dec(Types.PCharacter(character)^.hitPoints, oldMaxHitPoints - Types.PCharacter(character)^.maxHitPoints)
         else
-          character^.hitPoints := 0
+          Types.PCharacter(character)^.hitPoints := 0
       end;
-      character^.stats[C_Stat.CONSTITUTION].current := bestBase;
-      if character^.stats[C_Stat.CONSTITUTION].current >= 20 then begin
-        if not CharHlp.HasEffect(character, C_Effect.CONSTITUTION_REGENERATION, effect) then
+      Types.PCharacter(character)^.stats[C_Stat.CONSTITUTION].current := bestBase;
+      if Types.PCharacter(character)^.stats[C_Stat.CONSTITUTION].current >= 20 then begin
+        if not CharHlp.HasEffect(character, C_Effect.CONSTITUTION_REGENERATION, effectArg) then
           FxEngine.AddEffect(character, C_Effect.CONSTITUTION_REGENERATION, 60, 255, True)
       end else
         FxEngine.RemoveEffect(character, C_Effect.CONSTITUTION_REGENERATION, nil)
@@ -1006,13 +990,13 @@ begin
     C_Stat.INTELLIGENCE: ;
     C_Stat.WISDOM: ;
     C_Stat.DEXTERITY: if overrideValue <> 255 then
-        character^.stats[C_Stat.DEXTERITY].current := overrideValue
+        Types.PCharacter(character)^.stats[C_Stat.DEXTERITY].current := overrideValue
       else
-        character^.stats[C_Stat.DEXTERITY].current := bestBase;
+        Types.PCharacter(character)^.stats[C_Stat.DEXTERITY].current := bestBase;
     C_Stat.CHARISMA: begin
-      if CharHlp.HasEffect(character, C_Effect.FRIENDS, effect) then
+      if CharHlp.HasEffect(character, C_Effect.FRIENDS, effectArg) then
         Inc(bestBase, effect^.strength);
-      character^.stats[C_Stat.CHARISMA].current := bestBase
+      Types.PCharacter(character)^.stats[C_Stat.CHARISMA].current := bestBase
     end
   end
 end;
@@ -1030,36 +1014,37 @@ begin
       #2: GDVars.currentDamage := GDVars.currentDamage div 2
     end else
     FxEngine.TriggerEffectsWithCondition(FxEngine.COND_DAMAGE_NOT_SAVED, character);
-  if (GDVars.currentDamage > 0) and (character^.enabled <> 0) then begin
+  if (GDVars.currentDamage > 0) and (Types.PCharacter(character)^.enabled <> 0) then begin
     if GDVars.currentDamage <> 1 then
-      message := FxEngine.TAKES_PREFIX + CharHlp.ByteToString(GDVars.currentDamage) + FxEngine.POINTS_DAMAGE
+      message := GDConsts.takesPrefix + CharHlp.ByteToString(GDVars.currentDamage) + GDConsts.pointsDamage
     else
-      message := FxEngine.ONE_POINT_DAMAGE;
+      message := GDConsts.onePointDamage;
     case GDVars.elementMask and $F7 of
-      $01: message := message + FxEngine.FROM_FIRE;
-      $02: message := message + FxEngine.FROM_COLD;
-      $04: message := message + FxEngine.FROM_ELECTRICITY;
-      $10: message := message + FxEngine.FROM_ACID
+      $01: message := message + GDConsts.fromFire;
+      $02: message := message + GDConsts.fromCold;
+      $04: message := message + GDConsts.fromElectricity;
+      $10: message := message + GDConsts.fromAcid
     end;
     if (GDVars.elementMask and $08) = GDVars.elementMask then
-      message := message + FxEngine.FROM_MAGIC;
+      message := message + GDConsts.fromMagic;
     CharHlp.PrintNameStringAnim(character, False, message);
     CharHlp.InflictDamage(character, GDVars.currentDamage);
     if GDVars.interfaceState = C_Ifc.IN_COMBAT then begin
-      character^.combat^.canCast := 0;
-      if character^.combat^.spellCast > 0 then begin
-        CharHlp.PrintCreatureMessage(character, FxEngine.LOST_SPELL_MESSAGE, 12, True);
-        CharHlp.RemoveSpell(character, character^.combat^.spellCast);
+      Types.PCharacter(character)^.combat^.canCast := 0;
+      if Types.PCharacter(character)^.combat^.spellCast > 0 then begin
+        CharHlp.PrintCreatureMessage(character, GDConsts.lostSpellMessage, 12, True);
+        CharHlp.RemoveSpell(character, Types.PCharacter(character)^.combat^.spellCast);
         endResult := CharHlp.EndActions(character)
       end
     end;
-    if character^.enabled = 0 then begin
-      message := FxEngine.GOES_DOWN;
-      if (character^.immunityFlags and $08) = 0 then begin
-        if character^.status = C_Status.DYING then
-          message := message + FxEngine.DYING_SUFFIX;
-        if character^.status in [C_Status.DEAD_STATUS, C_Status.STONED, C_Status.GONE] then
-          message := FxEngine.KILLED_MESSAGE
+    if Types.PCharacter(character)^.enabled = 0 then begin
+      message := GDConsts.goesDown;
+      if (Types.PCharacter(character)^.immunityFlags and $08) = 0 then begin
+        if Types.PCharacter(character)^.status = C_Status.DYING then
+          message := message + GDConsts.dyingSuffix;
+        if Types.PCharacter(character)^.status in
+            [C_Status.DEAD_STATUS, C_Status.STONED, C_Status.GONE] then
+          message := GDConsts.killedMessage
       end;
       CharHlp.PrintCreatureMessage(character, message, GDVars.currentRow + 1, False);
       if GDVars.interfaceState <> C_Ifc.IN_COMBAT then
@@ -1067,7 +1052,7 @@ begin
       else begin
         FxEngine.RemoveEffectsHp0(character);
         FxEngine.TriggerEffectsWithCondition(C_Cond.HIT_POINTS_ZERO, character);
-        if (character^.enabled = 0) and (character^.status <> 10) then
+        if (Types.PCharacter(character)^.enabled = 0) and (Types.PCharacter(character)^.status <> 10) then
           CbtMap.CreatureDowned(character)
         else
           TextRend.PauseOnly
@@ -1080,15 +1065,14 @@ end;
 procedure AddEffectWithMessage(character: Types.PCharacter; effectId: Byte; minutes: Word; strength: Byte; onRemove,
                                saveNegates, saved: Byte; message: Types.TString40);
 var effect: Types.PEffect;
-    { Unused in this version; see the other implementations of this routine. }
-    oldEffect: Byte;
+    effectArg: Pointer absolute effect;
 begin
   GDVars.currentEffectId := effectId;
   FxEngine.TriggerEffectsWithCondition(C_Cond.EFFECT_ADDED, character);
   if (GDVars.currentEffectId = 0) or ((saved <> 0) and (saveNegates = 1)) then
-    CharHlp.PrintCreatureMessage(character, FxEngine.UNAFFECTED_MESSAGE, 10, True)
+    CharHlp.PrintCreatureMessage(character, GDConsts.unaffectedMessage, 10, True)
   else begin
-    if CharHlp.HasEffect(character, effectId, effect) then
+    if CharHlp.HasEffect(character, effectId, effectArg) then
       if effect^.duration > 0 then
         FxEngine.RemoveEffect(character, effectId, effect);
     FxEngine.AddEffect(character, effectId, minutes, strength, Boolean(onRemove));
@@ -1105,19 +1089,20 @@ var
   effect: array[1..5] of Byte;
 begin
   RestoreHitPoints := False;
-  if character^.status in
+  if Types.PCharacter(character)^.status in
       [C_Status.OKAY, C_Status.ANIMATED, C_Status.UNCONSCIOUS, C_Status.DYING] then
-    if ((character^.hitPoints < character^.maxHitPoints) and showMessage) or (not showMessage) then begin
-      character^.hitPoints := character^.hitPoints + hitPoints;
-      if character^.hitPoints > character^.maxHitPoints then
-        character^.hitPoints := character^.maxHitPoints;
-      if character^.enabled = 0 then begin
-        if character^.status = C_Status.DYING then
-          character^.status := C_Status.UNCONSCIOUS;
-        if (character^.status = C_Status.UNCONSCIOUS) and
+    if ((Types.PCharacter(character)^.hitPoints < Types.PCharacter(character)^.maxHitPoints) and showMessage) or
+        (not showMessage) then begin
+      Types.PCharacter(character)^.hitPoints := Types.PCharacter(character)^.hitPoints + hitPoints;
+      if Types.PCharacter(character)^.hitPoints > Types.PCharacter(character)^.maxHitPoints then
+        Types.PCharacter(character)^.hitPoints := Types.PCharacter(character)^.maxHitPoints;
+      if Types.PCharacter(character)^.enabled = 0 then begin
+        if Types.PCharacter(character)^.status = C_Status.DYING then
+          Types.PCharacter(character)^.status := C_Status.UNCONSCIOUS;
+        if (Types.PCharacter(character)^.status = C_Status.UNCONSCIOUS) and
             (GDVars.interfaceState <> C_Ifc.IN_COMBAT) then begin
-          character^.status := C_Status.OKAY;
-          character^.enabled := 1
+          Types.PCharacter(character)^.status := C_Status.OKAY;
+          Types.PCharacter(character)^.enabled := 1
         end
       end;
       RestoreHitPoints := True
@@ -1133,8 +1118,8 @@ begin
   while current <> nil do begin
     for index := 1 to 9 do
       if current^.covered[index] <> 0 then
-        GDVars.arena^.cells[current^.y + GDConsts.combatTables.directionY[GDConsts.patchDir[index]],
-                     current^.x + GDConsts.combatTables.directionX[GDConsts.patchDir[index]]] := current^.terrain;
+        GDVars.arena^.cells[current^.y + GDConsts.directionY[GDConsts.patchDir[index]],
+                                   current^.x + GDConsts.directionX[GDConsts.patchDir[index]]] := current^.terrain;
     current := current^.next
   end
 end;
@@ -1163,20 +1148,20 @@ begin
       eligible := current^.countdown <= 1;
     if eligible then begin
       with current^ do
-        for index := 1 to 9 do
-          if covered[index] <> 0 then begin
-            cellX := x + GDConsts.combatTables.directionX[GDConsts.patchDir[index]];
-            cellY := y + GDConsts.combatTables.directionY[GDConsts.patchDir[index]];
-            occupied := False;
-            for queueIndex := 1 to GDVars.downedCount do
-              if (GDVars.downed[queueIndex].cr <> nil) and (GDVars.downed[queueIndex].x = cellX) and
-                  (GDVars.downed[queueIndex].y = cellY) then
-                occupied := True;
-            if occupied then
-              GDVars.arena^.cells[cellY, cellX] := C_Terr.TERRAIN_CORPSE
-            else
-              GDVars.arena^.cells[cellY, cellX] := under[index]
-          end;
+      for index := 1 to 9 do
+        if covered[index] <> 0 then begin
+          cellX := x + GDConsts.directionX[GDConsts.patchDir[index]];
+          cellY := y + GDConsts.directionY[GDConsts.patchDir[index]];
+          occupied := False;
+          for queueIndex := 1 to GDVars.downedCount do
+            if (GDVars.downed[queueIndex].cr <> nil) and (GDVars.downed[queueIndex].x = cellX) and
+                (GDVars.downed[queueIndex].y = cellY) then
+              occupied := True;
+          if occupied then
+            GDVars.arena^.cells[cellY, cellX] := C_Terr.TERRAIN_CORPSE
+          else
+            GDVars.arena^.cells[cellY, cellX] := under[index]
+        end;
       removed := True;
       if previous = nil then
         GDVars.cloudList := next
@@ -1192,7 +1177,7 @@ begin
   end;
   if removed then begin
     FxEngine.RefreshExplosionMap;
-    CharHlp.PrintBottomLine(FxEngine.EXPLOSION_MESSAGE)
+    CharHlp.PrintBottomLine(GDConsts.explosionMessage)
   end
 end;
 begin

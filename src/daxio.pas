@@ -2,10 +2,10 @@
   file on the data or master path with an insert-disk prompt, the BIOS text writes that prompt uses, file-name cleaning,
   and saving and restoring the disk number. Sound is stopped while an archive loads. }
 {$O+,F+}
-{$R-,S-,V-,I-,B-}
+{$I-}
 unit DaxIo;
 interface
-uses Crt, GDConsts, GDVars, Dos, GameIo, SoundDrv, Types;
+uses Crt, Dos, GDConsts, GDVars, GameIo, SoundDrv, Types;
 type
   TString20 = string[20];
 
@@ -145,7 +145,8 @@ end;
 procedure PopSoundState;
 begin
   GDVars.soundActive := GDVars.savedSoundActive;
-  if GDVars.soundActive = 1 then SoundDrv.StartSound;
+  if GDVars.soundActive = 1 then
+    SoundDrv.StartSound;
 end;
 
 procedure WriteChar(col, row, attr, count, ch: Byte);
@@ -221,7 +222,7 @@ begin
   repeat
     found := DaxIo.FileExists('game.ovr');
     if not found then begin
-      WriteLn('Please insert overlay disk.');
+      WriteLn(GDConsts.overlayMissing);
       key := GameIo.ReadGameKey;
     end;
   until found;
@@ -236,11 +237,12 @@ begin
 end;
 
 function OpenWithRetry(fileName, promptMsg: Types.TString80; noPrompt: Char; var f: file): Boolean;
-var found: Boolean;
-    swapTmp: string[79];
-    dir: string[67];
-    baseName: string[8];
-    ext: string[4];
+var
+  found: Boolean;
+  swapTmp: String[79];
+  dir: DirStr;
+  baseName: NameStr;
+  ext: ExtStr;
 begin
   FSplit(fileName, dir, baseName, ext);
   if dir = '' then
@@ -255,14 +257,12 @@ begin
         dir := GDVars.dataPath;
         found := DaxIo.FileExists(dir + baseName + ext);
       end;
-    if not found then
-      if noPrompt = #0 then begin
-        if dir[1] < 'C' then
-          DaxIo.PromptBox(14, promptMsg + GDVars.masterDrive + ': <ENTER>')
-        else begin
-          DaxIo.PromptBox(14, 'Couldn''t find ' + baseName + ext + '. Check install.');
-          GameIo.ExitGame;
-        end;
+    if (not found) and (noPrompt = #0) then
+      if dir[1] < 'C' then
+        DaxIo.PromptBox(14, promptMsg + GDVars.masterDrive + GDConsts.promptColon)
+      else begin
+        DaxIo.PromptBox(14, GDConsts.couldntFind + baseName + ext + GDConsts.checkInstall);
+        GameIo.ExitGame;
       end;
   until found or (noPrompt <> #0);
   if found then begin
@@ -312,7 +312,7 @@ var
   b: ShortInt;
   fillByte: Byte;
   { Unused in this version; see the other implementations of this routine. }
-  buf: array[0..511] of Byte;
+  buf: array[1..512] of Byte;
 begin
   sourceIndex := 0;
   dstIdx := 0;
@@ -334,9 +334,10 @@ begin
 end;
 
 function OpenDax(dirName, ext: TString20; var headerSize: Word; var dataFile, indexFile: file): Boolean;
-var nread: Word;
-    { Unused in this version; see the other implementations of this routine. }
-    ioStatus: Word;
+var
+  nread: Word;
+  { Unused in this version; see the other implementations of this routine. }
+  ioStatus: array[1..2] of Byte;
 begin
   if DaxIo.OpenWithRetry(dirName + ext, GDConsts.insertDiskMessages[GDVars.diskNumber], Chr(GDVars.suppressDisk),
                          dataFile) then begin
@@ -360,15 +361,16 @@ begin
 end;
 
 procedure LoadDax(fileName, ext: Types.TString80; fileId: Byte; var sizeRead: Word; var data: Types.PBytes);
-var compSize: Word;
-    offset: LongInt;
-    id: Byte;
-    n: Word;
-    dataFile: file;
-    indexFile: file;
-    headerSize: Word;
-    { Unused in this version; see the other implementations of this routine. }
-    numberText: array[1..8] of Byte;
+var
+  compSize: Word;
+  offset: LongInt;
+  id: Byte;
+  n: Word;
+  dataFile: file;
+  indexFile: file;
+  headerSize: Word;
+  { Unused in this version; see the other implementations of this routine. }
+  numberText: array[1..8] of Byte;
 begin
   DaxIo.PushSoundState;
   if not DaxIo.OpenDax(fileName, ext, headerSize, dataFile, indexFile) then begin

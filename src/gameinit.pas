@@ -3,8 +3,8 @@
 {$O+,F+,I-}
 unit GameInit;
 interface
-uses C_Dir, C_Ifc, C_Music, C_Video, Crt, GDConsts, GDVars, Mouse, Blit, TextRend,
-  MenuCore, Sym8x8, MapTiles, DaxIo, GameIo, Magic, EffHndlr, Types;
+uses C_Dir, C_Ifc, C_Music, C_Video, GDConsts, GDVars, Mouse, Blit, TextRend, MenuCore,
+  Sym8x8, MapTiles, DaxIo, GameIo, Magic, EffHndlr, Crt, Types;
 
 { Sets the menu colors, clears the item pool, turns Num-Lock on and seeds Random. Sets up the mouse -- the cursor mask
   for the adapter, and mouseScaled set when the driver, placed at x 639, reads back below 321 -- and centers the
@@ -36,7 +36,7 @@ begin
   FillChar(GDVars.itemTemplates, SizeOf(GDVars.itemTemplates), $FF);
   DaxIo.LoadDax('ITEM0', GDConsts.daxExtension, 1, size, buf);
   if size = 0 then begin
-    TextRend.DisplayAndPause(White, Black, 'Unable to find item file');
+    TextRend.DisplayAndPause(White, Black, GDConsts.itemError);
     GameIo.ExitGame
   end;
   readOfs := 0;

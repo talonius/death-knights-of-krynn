@@ -1,6 +1,6 @@
 { Portrait -- the picture window: loading and freeing the animations the picture box holds (the encounter pictures and
   sprites), drawing a frame, and the full-screen BIGPIC. }
-{$O+,F+,I-,V+}
+{$O+,F+,I-}
 unit Portrait;
 interface
 uses GDConsts, GDVars, Crt, Blit, Mouse, TextRend, DaxIo, GameIo, Border, Types;
@@ -123,8 +123,8 @@ begin
  end;
  if isPic and gotXor then FreeMem(xorBuf, planeSz + 1);
  FreeMem(buf, sz); GameIo.FlushKeys;
- if GDVars.animationsEnabled <> 0 then TextRend.PrintSpaces(GDConsts.messageColumn, GDConsts.messageRow, Black,
-                                                              GDConsts.screenWidth)
+ if GDVars.animationsEnabled <> 0 then
+     TextRend.PrintSpaces(GDConsts.messageColumn, GDConsts.messageRow, Black, GDConsts.screenWidth)
 end;
 
 procedure FreeAnimation(var a: Types.TAnimRec);
@@ -136,7 +136,7 @@ end;
 procedure Show3DSprite(dist: Byte; a: Types.TAnimRec);
 begin
  if (dist < 1) or (dist > 3) then begin
-  Blit.RestoreVideoMode; WriteLn(Output, 'Illegal range in Show3DSprite.'); GameIo.ExitGame
+  Blit.RestoreVideoMode; WriteLn(Output, GDConsts.spriteError); GameIo.ExitGame
  end;
  if a.frames[dist].pic <> nil then
   with a.frames[dist].pic^ do

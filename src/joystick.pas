@@ -4,7 +4,7 @@
 {$F+,O-,S-,R-,V-,B-,I-}
 unit Joystick;
 interface
-uses Crt, GDConsts, GDVars;
+uses GDConsts, GDVars, Crt;
 
 { Clears both calibration records; when the joystick is enabled, keeps it enabled only if joystick 1 can be read. }
 procedure ProbeJoystick;
@@ -146,7 +146,7 @@ begin
   GDVars.joyCalib[1].y.thr[3] := sumY div 20;
   repeat
     ClrScr;
-    WriteLn('Push JOYSTICK #1 to the extreme upper left position and press BUTTON #1.');
+    WriteLn(GDConsts.upperPrompt1 + ' ' + GDConsts.upperPrompt2);
     j := 0;
     repeat
       ok := Byte(Joystick.ReadJoystick(1, x, y, buttons));
@@ -154,7 +154,7 @@ begin
     until (j > 20000) or ((ok <> 0) and ((buttons and GDConsts.joystickButtonMasks[1, 1]) <> 0));
     if j > 20000 then begin
       ClrScr;
-      WriteLn('Couldn''t read the joystick.  Aborting calibration.');
+      WriteLn(GDConsts.joystickReadError);
       Delay(2000);
       Exit;
     end;
@@ -170,7 +170,7 @@ begin
         end;
       end else begin
         ClrScr;
-        WriteLn('Couldn''t read the joystick.  Aborting calibration.');
+        WriteLn(GDConsts.joystickReadError);
         Delay(2000);
         Exit;
       end;
@@ -190,7 +190,7 @@ begin
   until not Joystick.JoyButton(1, 1);
   repeat
     ClrScr;
-    WriteLn('Push JOYSTICK #1 to the extreme lower right position and press BUTTON #1.');
+    WriteLn(GDConsts.lowerPrompt1 + ' ' + GDConsts.lowerPrompt2);
     j := 0;
     repeat
       ok := Byte(Joystick.ReadJoystick(1, x, y, buttons));
@@ -198,7 +198,7 @@ begin
     until (j > 20000) or ((ok <> 0) and ((buttons and GDConsts.joystickButtonMasks[1, 1]) <> 0));
     if j > 20000 then begin
       ClrScr;
-      WriteLn('Couldn''t read the joystick.  Aborting calibration.');
+      WriteLn(GDConsts.joystickReadError);
       Delay(2000);
       Exit;
     end;
@@ -214,7 +214,7 @@ begin
         end;
       end else begin
         ClrScr;
-        WriteLn('Couldn''t read the joystick.  Aborting calibration.');
+        WriteLn(GDConsts.joystickReadError);
         Delay(2000);
         Exit;
       end;

@@ -77,7 +77,7 @@ begin
       TextRend.DisplayString(CopyProt.QUESTION_COLUMN, CopyProt.PAGE_ROW, LightGreen, Black,
                              GDConsts.promptPage + CharHlp.ByteToString(pageNum) + ')?      ');
     end;
-    enteredWord := TextRend.ReadString('Enter ', Yellow, Black, CopyProt.MAX_INPUT_LENGTH);
+    enteredWord := TextRend.ReadString(GDConsts.enterAnswerPrompt, Yellow, Black, CopyProt.MAX_INPUT_LENGTH);
     GDVars.protectionMarks[CopyProt.ANSWER_READ] := CopyProt.STAGE_COMPLETE;
   until (attemptCount = CopyProt.MAX_ATTEMPTS) or (enteredWord = expectedWord);
   GDVars.protectionMarks[CopyProt.ATTEMPTS_FINISHED] := CopyProt.STAGE_COMPLETE;
